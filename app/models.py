@@ -46,7 +46,7 @@ class TripIn(BaseModel):
         amount = info.data.get("amount")
         if amount is not None and v >= amount:
             raise PydanticCustomError(
-                "commission_exceeds_amount", "Commission cannot exceed the trip amount"
+                "commission_exceeds_amount", "Commission must be less than the trip amount"
             )
         return v
 
@@ -118,7 +118,8 @@ class DayInfo(BaseModel):
 
 # UTC offset as "+05:00"; real-world offsets range from -12:00 to +14:00
 TzOffset = Annotated[str, Field(pattern=r"^[+-](0\d|1[0-4]):[0-5]\d$")]
-CommissionPct = Annotated[float, Field(ge=0, le=100)]
+# Below 100: commission must stay strictly less than the trip amount
+CommissionPct = Annotated[float, Field(ge=0, lt=100)]
 
 
 class LoginIn(BaseModel):

@@ -104,6 +104,7 @@ def test_repeat_without_id_does_not_duplicate(client):
     {"end": NEW["start"]},                       # end == start
     {"end": "2026-10-01T09:59:00+05:00"},        # end before start
     {"commission": 2001},                        # commission above amount
+    {"commission": 2000},                        # commission equal to amount
     {"commission": -1},
     {"payment": "crypto"},
     {"start": "2026-10-01T10:00:00", "end": "2026-10-01T10:20:00"},  # no timezone offset
@@ -130,3 +131,24 @@ def test_missing_timezone_error_type(client):
     r = client.post("/api/trips", json={**NEW, "start": "2026-10-01T10:00:00"})
     assert r.status_code == 422
     assert {e["loc"][-1]: e["type"] for e in r.json()["detail"]}["start"] == "timezone_required"
+
+
+def test_commission_just_below_amount_is_accepted(client):
+    r = client.post("/api/trips", json={**NEW, "commission": NEW["amount"] - 1})
+    assert r.status_code == 201
+
+
+def test_legacy_trip_with_commission_equal_to_amount_is_still_readable(client, db):
+    # Rows saved before "commission < amount" was enforced must not break the day view
+    with db.connection() as conn:
+        conn.execute("ALTER TABLE trips DROP CONSTRAINT trips_commission_check")
+        conn.execute(
+            "INSERT INTO trips SELECT driver_id, 'legacy', start_at, end_at, start_offset_min,"
+            " end_offset_min, local_day, 1000, payment, 1000 FROM trips WHERE id = 't1'"
+        )
+        conn.execute("ALTER TABLE trips ADD CONSTRAINT trips_commission_check"
+                     " CHECK (commission >= 0 AND commission < amount) NOT VALID")
+    r = client.get("/api/trips", params={"date": "2026-10-01"})
+    assert r.status_code == 200
+    assert {t["id"] for t in r.json()} == {"t1", "t2", "legacy"}
+    assert client.get("/api/summary", params={"date": "2026-10-01"}).json()["count"] == 3

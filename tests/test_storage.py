@@ -41,3 +41,32 @@ def test_days_aggregates_per_day(storage, driver_id):
                                      "commission": 100}).to_trip())
     days = [(d.date.isoformat(), d.count, d.net) for d in storage.days(driver_id)]
     assert days == [("2026-10-02", 1, 2380), ("2026-10-03", 1, 900)]
+
+
+def test_database_rejects_commission_equal_to_amount(storage, driver_id):
+    import psycopg
+    import pytest
+    # Bypass model validation: the database constraint is the last line of defence
+    trip = TripIn(**NIGHT).to_trip().model_copy(update={"commission": NIGHT["amount"]})
+    with pytest.raises(psycopg.errors.CheckViolation):
+        storage.add(driver_id, trip)
+
+
+def test_old_commission_check_is_migrated(db, storage, driver_id):
+    """A database from before the rule: old "<= amount" check and a row with commission == amount."""
+    import psycopg
+    import pytest
+    from app.db import init_schema
+    with db.connection() as conn:
+        conn.execute("ALTER TABLE trips DROP CONSTRAINT trips_commission_check")
+        conn.execute("ALTER TABLE trips ADD CONSTRAINT trips_check"
+                     " CHECK (commission >= 0 AND commission <= amount)")
+    old_row = TripIn(**NIGHT).to_trip().model_copy(update={"commission": NIGHT["amount"]})
+    storage.add(driver_id, old_row)
+
+    init_schema(db)  # startup on the old database must not fail on the existing row
+
+    assert len(storage.for_day(driver_id, date(2026, 10, 2))) == 1
+    new_row = TripIn(**{**NIGHT, "id": "n2"}).to_trip().model_copy(update={"commission": NIGHT["amount"]})
+    with pytest.raises(psycopg.errors.CheckViolation):
+        storage.add(driver_id, new_row)

@@ -22,7 +22,10 @@ def _restore(instant: datetime, offset_min: int) -> datetime:
 
 
 def _row_to_trip(row: dict) -> Trip:
-    return Trip(
+    # model_construct skips validation: rows were validated on insert, and re-checking
+    # them against today's rules would make old rows (e.g. commission == amount from
+    # before that was forbidden) unreadable.
+    return Trip.model_construct(
         id=row["id"],
         start=_restore(row["start_at"], row["start_offset_min"]),
         end=_restore(row["end_at"], row["end_offset_min"]),

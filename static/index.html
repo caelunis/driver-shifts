@@ -355,7 +355,7 @@
         </label>
         <label class="field" data-field="default_commission_pct">
           <span>Комиссия, %</span>
-          <input type="number" name="default_commission_pct" min="0" max="100" step="0.01" inputmode="decimal" placeholder="не задана">
+          <input type="number" name="default_commission_pct" min="0" max="99.99" step="0.01" inputmode="decimal" placeholder="не задана">
           <small class="error"></small>
         </label>
       </div>
@@ -450,7 +450,8 @@ function errorMessage(e) {
     case "value_error": return field === "email" ? "Некорректный e-mail" : e.msg.replace(/^Value error, /, "");
     case "timezone_required": return "Укажите часовой пояс";
     case "end_before_start": return "Окончание должно быть позже начала";
-    case "commission_exceeds_amount": return "Комиссия не может превышать сумму";
+    case "commission_exceeds_amount": return "Комиссия должна быть меньше суммы";
+    case "less_than": return `Должно быть меньше ${e.ctx.lt}`;
     default: return e.msg;
   }
 }

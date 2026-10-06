@@ -150,6 +150,7 @@ def test_update_profile_partially(client):
     ({"default_tz": "+5"}, "default_tz"),
     ({"default_tz": "+15:00"}, "default_tz"),
     ({"default_commission_pct": 120}, "default_commission_pct"),
+    ({"default_commission_pct": 100}, "default_commission_pct"),
     ({"name": ""}, "name"),
     ({"name": None}, "name"),
 ])
