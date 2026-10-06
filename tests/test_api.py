@@ -1,10 +1,8 @@
-import json
-
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
-from app.storage import TripStorage
+from app.models import TripIn
 
 T1 = {"id": "t1", "start": "2026-10-01T08:10:00+05:00", "end": "2026-10-01T08:32:00+05:00",
       "amount": 2400, "payment": "card", "commission": 360}
@@ -13,15 +11,15 @@ T2 = {"id": "t2", "start": "2026-10-01T09:05:00+05:00", "end": "2026-10-01T09:20
 
 
 @pytest.fixture
-def data_file(tmp_path):
-    path = tmp_path / "trips.json"
-    path.write_text(json.dumps([T1, T2]), encoding="utf-8")
-    return path
+def client(db, storage, driver_id):
+    for t in (T1, T2):
+        storage.add(driver_id, TripIn(**t).to_trip())
+    return TestClient(create_app(db))
 
 
-@pytest.fixture
-def client(data_file):
-    return TestClient(create_app(TripStorage(data_file)))
+def stored_count(db):
+    with db.connection() as conn:
+        return conn.execute("SELECT count(*) AS n FROM trips").fetchone()["n"]
 
 
 def count_trips(client, day="2026-10-01"):
@@ -53,11 +51,11 @@ NEW = {"id": "t3", "start": "2026-10-01T10:00:00+05:00", "end": "2026-10-01T10:2
        "amount": 2000, "payment": "cash", "commission": 300}
 
 
-def test_add_trip_created(client, data_file):
+def test_add_trip_created(client, db):
     r = client.post("/api/trips", json=NEW)
     assert r.status_code == 201
     assert count_trips(client) == 3
-    assert len(json.loads(data_file.read_text())) == 3  # actually persisted to the file
+    assert stored_count(db) == 3  # actually persisted
 
 
 def test_repeat_same_trip_does_not_duplicate(client):
@@ -102,11 +100,10 @@ def test_repeat_without_id_does_not_duplicate(client):
     {"payment": "crypto"},
     {"start": "2026-10-01T10:00:00", "end": "2026-10-01T10:20:00"},  # no timezone offset
 ])
-def test_invalid_trip_rejected(client, data_file, patch):
-    before = data_file.read_text()
+def test_invalid_trip_rejected(client, db, patch):
     r = client.post("/api/trips", json={**NEW, **patch})
     assert r.status_code == 422
-    assert data_file.read_text() == before
+    assert stored_count(db) == 2
 
 
 def test_all_field_errors_reported_at_once(client):

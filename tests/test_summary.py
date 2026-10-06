@@ -1,7 +1,7 @@
 from datetime import date
 
 from app.models import Trip
-from app.summary import day_index, summarize, trips_for_day
+from app.summary import summarize, trips_for_day
 
 
 def make(id, start, end, amount, payment, commission):
@@ -55,10 +55,3 @@ def test_trips_sorted_by_start():
     ids = [t.id for t in trips_for_day(list(reversed(SAMPLE)), date(2026, 10, 1))]
     assert ids == ["t1", "t2"]
 
-
-def test_day_index_counts_and_net_per_day():
-    trips = SAMPLE + [
-        make("x", "2026-10-02T10:00:00+05:00", "2026-10-02T10:30:00+05:00", 1000, "card", 100),
-    ]
-    days = [(d.date.isoformat(), d.count, d.net) for d in day_index(trips)]
-    assert days == [("2026-10-01", 2, 3315), ("2026-10-02", 1, 900)]

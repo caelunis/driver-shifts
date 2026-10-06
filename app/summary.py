@@ -1,8 +1,7 @@
-from collections import defaultdict
 from datetime import date
 from typing import Iterable
 
-from .models import DayInfo, DaySummary, PaymentBreakdown, Trip
+from .models import DaySummary, PaymentBreakdown, Trip
 
 
 def trips_for_day(trips: Iterable[Trip], day: date) -> list[Trip]:
@@ -32,12 +31,3 @@ def summarize(trips: Iterable[Trip], day: date) -> DaySummary:
         card=card,
     )
 
-
-def day_index(trips: Iterable[Trip]) -> list[DayInfo]:
-    """Days that have trips, in chronological order, with count and take-home."""
-    counts: dict[date, int] = defaultdict(int)
-    nets: dict[date, int] = defaultdict(int)
-    for t in trips:
-        counts[t.local_day] += 1
-        nets[t.local_day] += t.amount - t.commission
-    return [DayInfo(date=d, count=counts[d], net=nets[d]) for d in sorted(counts)]
