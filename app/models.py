@@ -1,8 +1,8 @@
 import hashlib
 from datetime import date, datetime, timezone
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, EmailStr, Field, ValidationInfo, field_validator
 from pydantic_core import PydanticCustomError
 
 Payment = Literal["cash", "card"]
@@ -112,3 +112,61 @@ class DayInfo(BaseModel):
     date: date
     count: int
     net: int
+
+
+# --- accounts ---
+
+# UTC offset as "+05:00"; real-world offsets range from -12:00 to +14:00
+TzOffset = Annotated[str, Field(pattern=r"^[+-](0\d|1[0-4]):[0-5]\d$")]
+CommissionPct = Annotated[float, Field(ge=0, le=100)]
+
+
+class RegisterIn(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+    name: str = Field(min_length=1, max_length=100)
+
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise PydanticCustomError("blank", "Name must not be blank")
+        return v
+
+
+class LoginIn(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=1, max_length=128)
+
+
+class Profile(BaseModel):
+    id: int
+    email: str
+    name: str
+    car: str
+    default_tz: str
+    default_commission_pct: Optional[float]
+
+
+class ProfileUpdate(BaseModel):
+    """PATCH body: only the fields that were sent are changed."""
+
+    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    car: Optional[str] = Field(default=None, max_length=100)
+    default_tz: Optional[TzOffset] = None
+    default_commission_pct: Optional[CommissionPct] = None  # null clears it
+
+    @field_validator("name")
+    @classmethod
+    def name_not_null(cls, v):
+        if v is None or not v.strip():
+            raise PydanticCustomError("blank", "Name must not be blank")
+        return v.strip()
+
+    @field_validator("car", "default_tz")
+    @classmethod
+    def not_null(cls, v):
+        if v is None:
+            raise PydanticCustomError("missing", "Field cannot be null")
+        return v.strip()
