@@ -40,17 +40,27 @@
     --cash: #fbbf24; --card-pay: #93c5fd; --shadow: 0 8px 24px rgba(0,0,0,.5);
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body {
     margin: 0; background: var(--bg); color: var(--text);
     font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
   header {
     max-width: 1400px; margin: 0 auto; padding: 20px 16px 16px;
-    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
   }
   h1 { font-size: 22px; margin: 0; }
-  #themeBtn { white-space: nowrap; }
+  h1 a { color: inherit; text-decoration: none; }
   h2 { font-size: 16px; margin: 0 0 12px; }
+  .header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .who { color: var(--muted); font-size: 14px; margin-right: 4px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .header-actions button, .header-actions a.btn { white-space: nowrap; }
+  a.btn {
+    color: inherit; text-decoration: none; border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 10px; background: var(--card);
+  }
+  a.btn:hover { background: var(--hover); }
+  a.btn.active { background: var(--accent-soft); border-color: var(--accent-soft); }
 
   /* Three columns: day navigation | day content | add-trip form */
   .layout {
@@ -68,6 +78,8 @@
     .layout { grid-template-columns: minmax(0, 1fr); row-gap: 0; }
     .form-col { grid-column: auto; }
   }
+  /* Single centered column: auth and profile screens */
+  .narrow { max-width: 440px; margin: 0 auto; padding: 0 16px 48px; }
 
   .panel {
     background: var(--card); border: 1px solid var(--border);
@@ -82,6 +94,10 @@
   button:disabled { opacity: .4; cursor: default; }
   button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); width: 100%; padding: 10px; }
   button.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
+  button.danger { color: var(--err); border-color: var(--err); }
+  button.danger:hover:not(:disabled) { background: var(--err-bg); }
+  button.danger.solid { background: var(--err); color: #fff; }
+  button.danger.solid:hover:not(:disabled) { background: var(--err); filter: brightness(1.08); }
 
   /* Calendar */
   .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
@@ -139,19 +155,45 @@
     .pay { padding: 2px 6px; }
   }
 
-  /* Form */
+  /* Forms */
   form { display: flex; flex-direction: column; gap: 12px; }
   .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .field > span { font-size: 13px; color: var(--muted); }
   .field input, .field select { width: 100%; min-width: 0; color: var(--text); }
   .field.invalid input, .field.invalid select { border-color: var(--err); }
-  .field .error { color: var(--err); font-size: 12px; min-height: 0; }
+  .field .error { color: var(--err); font-size: 12px; }
   .field .error:empty { display: none; }
+  .field .hint { color: var(--muted); font-size: 12px; }
+  .field .hint:empty { display: none; }
+
+  /* Auth tabs */
+  .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 16px;
+          background: var(--bg); border-radius: 10px; padding: 4px; }
+  .tabs button { border: 0; background: none; padding: 8px; border-radius: 8px; }
+  .tabs button.active { background: var(--card); box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600; }
+  .demo-hint { color: var(--muted); font-size: 13px; text-align: center; margin: 0; }
+
+  /* Profile danger zone */
+  .danger-zone { border-color: var(--err); }
+  .danger-zone h2 { color: var(--err); }
+  .danger-zone p { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
+
+  /* Confirmation dialog */
+  dialog {
+    border: 1px solid var(--border); border-radius: 12px; padding: 20px;
+    background: var(--card); color: var(--text); width: min(400px, calc(100vw - 32px));
+    box-shadow: var(--shadow);
+  }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+  dialog h2 { margin-bottom: 8px; }
+  dialog p { margin: 0 0 4px; color: var(--muted); font-size: 14px; }
+  .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
   /* Toasts */
+  /* Bottom-right: the header holds the navigation, a toast there would cover it */
   #toasts {
-    position: fixed; top: 16px; right: 16px; z-index: 10;
+    position: fixed; bottom: 16px; right: 16px; z-index: 10;
     display: flex; flex-direction: column; gap: 8px; width: min(360px, calc(100vw - 32px));
   }
   .toast {
@@ -164,18 +206,69 @@
   .toast.info { background: var(--info-bg); color: var(--info); }
   .toast .text { flex: 1; }
   .toast button { border: 0; background: none; color: inherit; padding: 0 2px; font-size: 18px; line-height: 1; }
-  .toast.hide { opacity: 0; transform: translateY(-6px); transition: .2s; }
-  @keyframes slide-in { from { opacity: 0; transform: translateY(-6px); } }
-  @media (max-width: 520px) { #toasts { top: auto; bottom: 16px; } }
+  .toast.hide { opacity: 0; transform: translateY(6px); transition: .2s; }
+  @keyframes slide-in { from { opacity: 0; transform: translateY(6px); } }
 </style>
 </head>
 <body>
 <header>
-  <h1>Дневник смен водителя</h1>
-  <button id="themeBtn" type="button"></button>
+  <h1><a href="#">Дневник смен водителя</a></h1>
+  <div class="header-actions">
+    <span class="who" id="who" hidden></span>
+    <a class="btn" href="#" id="navDiary" hidden>Дневник</a>
+    <a class="btn" href="#profile" id="navProfile" hidden>Профиль</a>
+    <button id="logoutBtn" type="button" hidden>Выйти</button>
+    <button id="themeBtn" type="button"></button>
+  </div>
 </header>
 
-<div class="layout">
+<!-- ===== Login / registration ===== -->
+<div class="narrow" id="authView" hidden>
+  <section class="panel">
+    <div class="tabs" role="tablist">
+      <button type="button" id="tabLogin" class="active" role="tab">Вход</button>
+      <button type="button" id="tabRegister" role="tab">Регистрация</button>
+    </div>
+
+    <form id="loginForm" novalidate>
+      <label class="field" data-field="email">
+        <span>E-mail</span>
+        <input type="email" name="email" autocomplete="username">
+        <small class="error"></small>
+      </label>
+      <label class="field" data-field="password">
+        <span>Пароль</span>
+        <input type="password" name="password" autocomplete="current-password">
+        <small class="error"></small>
+      </label>
+      <button type="submit" class="primary">Войти</button>
+      <p class="demo-hint">Демо: demo@example.com / demo12345</p>
+    </form>
+
+    <form id="registerForm" novalidate hidden>
+      <label class="field" data-field="name">
+        <span>Имя</span>
+        <input type="text" name="name" autocomplete="name" maxlength="100">
+        <small class="error"></small>
+      </label>
+      <label class="field" data-field="email">
+        <span>E-mail</span>
+        <input type="email" name="email" autocomplete="username">
+        <small class="error"></small>
+      </label>
+      <label class="field" data-field="password">
+        <span>Пароль</span>
+        <input type="password" name="password" autocomplete="new-password">
+        <small class="hint">Не меньше 8 символов</small>
+        <small class="error"></small>
+      </label>
+      <button type="submit" class="primary">Зарегистрироваться</button>
+    </form>
+  </section>
+</div>
+
+<!-- ===== Diary ===== -->
+<div class="layout" id="diaryView" hidden>
   <aside class="side">
     <section class="panel">
       <div class="cal-head">
@@ -242,6 +335,7 @@
           <label class="field" data-field="commission">
             <span>Комиссия, ₸</span>
             <input type="number" name="commission" min="0" step="1" inputmode="numeric">
+            <small class="hint" id="commissionHint"></small>
             <small class="error"></small>
           </label>
         </div>
@@ -256,12 +350,7 @@
           </label>
           <label class="field" data-field="tz">
             <span>Часовой пояс</span>
-            <select name="tz">
-              <option value="+05:00" selected>UTC+05:00</option>
-              <option value="+06:00">UTC+06:00</option>
-              <option value="+03:00">UTC+03:00</option>
-              <option value="+00:00">UTC</option>
-            </select>
+            <select name="tz" class="tz-select"></select>
             <small class="error"></small>
           </label>
         </div>
@@ -270,6 +359,67 @@
     </section>
   </aside>
 </div>
+
+<!-- ===== Profile ===== -->
+<div class="narrow" id="profileView" hidden>
+  <section class="panel">
+    <h2>Профиль</h2>
+    <form id="profileForm" novalidate>
+      <label class="field" data-field="email">
+        <span>E-mail</span>
+        <input type="email" name="email" disabled>
+      </label>
+      <label class="field" data-field="name">
+        <span>Имя</span>
+        <input type="text" name="name" maxlength="100">
+        <small class="error"></small>
+      </label>
+      <label class="field" data-field="car">
+        <span>Автомобиль</span>
+        <input type="text" name="car" maxlength="100" placeholder="Toyota Camry, 123 ABC 02">
+        <small class="error"></small>
+      </label>
+      <div class="row">
+        <label class="field" data-field="default_tz">
+          <span>Часовой пояс</span>
+          <select name="default_tz" class="tz-select"></select>
+          <small class="error"></small>
+        </label>
+        <label class="field" data-field="default_commission_pct">
+          <span>Комиссия, %</span>
+          <input type="number" name="default_commission_pct" min="0" max="100" step="0.01" inputmode="decimal" placeholder="не задана">
+          <small class="error"></small>
+        </label>
+      </div>
+      <small class="hint" style="color: var(--muted); font-size: 12px; margin-top: -4px;">
+        Часовой пояс и комиссия подставляются в форму новой поездки.
+      </small>
+      <button type="submit" class="primary">Сохранить</button>
+    </form>
+  </section>
+
+  <section class="panel danger-zone">
+    <h2>Удаление аккаунта</h2>
+    <p>Аккаунт и все поездки будут удалены безвозвратно. Выполнится выход на всех устройствах.</p>
+    <button type="button" class="danger" id="deleteOpen">Удалить аккаунт</button>
+  </section>
+</div>
+
+<dialog id="deleteDialog">
+  <form id="deleteForm" method="dialog" novalidate>
+    <h2>Удалить аккаунт?</h2>
+    <p>Все поездки будут удалены без возможности восстановления. Для подтверждения введите пароль.</p>
+    <label class="field" data-field="password">
+      <span>Пароль</span>
+      <input type="password" name="password" autocomplete="current-password">
+      <small class="error"></small>
+    </label>
+    <div class="dialog-actions">
+      <button type="button" id="deleteCancel">Отмена</button>
+      <button type="submit" class="danger solid">Удалить навсегда</button>
+    </div>
+  </form>
+</dialog>
 
 <div id="toasts" aria-live="polite"></div>
 
@@ -291,6 +441,7 @@ function plural(n, one, few, many) {
 }
 const trips = n => plural(n, "поездка", "поездки", "поездок");
 
+let me = null;        // current driver's profile, null when logged out
 let days = [];        // [{date, count, net}] — days that have trips
 let current = null;   // selected day, YYYY-MM-DD
 let calView = null;   // first day of the month shown in the calendar
@@ -300,11 +451,22 @@ let calView = null;   // first day of the month shown in the calendar
 const hhmm = iso => iso.slice(11, 16);
 const minutes = (a, b) => Math.round((new Date(b) - new Date(a)) / 60000);
 
-async function api(path, opts) {
+/* ---------- API ---------- */
+
+async function api(path, opts = {}) {
+  if (opts.json !== undefined) {
+    opts = { ...opts, headers: { "Content-Type": "application/json" }, body: JSON.stringify(opts.json) };
+  }
   const r = await fetch(path, opts);
   let body = null;
   try { body = await r.json(); } catch {}
-  return { status: r.status, ok: r.ok, body };
+  // Session expired or revoked: back to the login screen (auth endpoints handle 401 themselves)
+  if (r.status === 401 && me && !path.startsWith("/api/auth/")) {
+    me = null;
+    toast("info", "Сессия истекла — войдите снова");
+    route();
+  }
+  return { status: r.status, ok: r.ok, body, headers: r.headers };
 }
 
 /* ---------- toasts ---------- */
@@ -319,6 +481,236 @@ function toast(kind, text, ms = 4000) {
   $("toasts").append(el);
   setTimeout(close, ms);
 }
+
+/* ---------- form helpers ---------- */
+
+// Server error types -> Russian messages. Custom types come from app/models.py.
+function errorMessage(e) {
+  const field = e.loc.at(-1);
+  switch (e.type) {
+    case "missing": return "Заполните поле";
+    case "blank": return "Не может быть пустым";
+    case "greater_than": return `Должно быть больше ${e.ctx.gt}`;
+    case "greater_than_equal": return `Не может быть меньше ${e.ctx.ge}`;
+    case "less_than_equal": return `Не может быть больше ${e.ctx.le}`;
+    case "string_too_short": return e.ctx.min_length === 1 ? "Заполните поле" : `Не меньше ${e.ctx.min_length} символов`;
+    case "string_too_long": return `Не больше ${e.ctx.max_length} символов`;
+    case "string_pattern_mismatch": return "Формат: +05:00";
+    case "int_parsing": case "int_type": case "int_from_float": return "Введите целое число";
+    case "float_parsing": case "float_type": return "Введите число";
+    case "datetime_parsing": case "datetime_type": case "datetime_from_date_parsing": return "Укажите дату и время";
+    case "literal_error": return "Выберите значение из списка";
+    case "value_error": return field === "email" ? "Некорректный e-mail" : e.msg.replace(/^Value error, /, "");
+    case "timezone_required": return "Укажите часовой пояс";
+    case "end_before_start": return "Окончание должно быть позже начала";
+    case "commission_exceeds_amount": return "Комиссия не может превышать сумму";
+    default: return e.msg;
+  }
+}
+
+function clearErrors(form) {
+  form.querySelectorAll(".field").forEach(f => {
+    f.classList.remove("invalid");
+    const err = f.querySelector(".error");
+    if (err) err.textContent = "";
+  });
+}
+
+function setFieldError(form, name, text) {
+  const f = form.querySelector(`.field[data-field="${name}"]`);
+  if (!f || !f.querySelector(".error")) return false;
+  f.classList.add("invalid");
+  f.querySelector(".error").textContent = text;
+  return true;
+}
+
+// Shows 422 errors under their fields; whatever has no field goes to a toast
+function showValidation(form, res) {
+  const unplaced = res.body.detail.filter(e => !setFieldError(form, e.loc.at(-1), errorMessage(e)));
+  if (unplaced.length) toast("err", unplaced.map(errorMessage).join("; "));
+}
+
+const isValidation = res => res.status === 422 && Array.isArray(res.body?.detail);
+const retryText = res => {
+  const s = Number(res.headers.get("Retry-After")) || 60;
+  return `Слишком много попыток. Попробуйте через ${plural(Math.ceil(s / 60), "минуту", "минуты", "минут")}`;
+};
+
+// Clear a field's error as soon as the user edits it
+document.addEventListener("input", e => {
+  const f = e.target.closest(".field");
+  if (f && f.classList.contains("invalid")) {
+    f.classList.remove("invalid");
+    f.querySelector(".error").textContent = "";
+  }
+});
+
+// Disables the submit button while a request is in flight
+async function submitting(form, fn) {
+  const btn = form.querySelector("button[type=submit]");
+  btn.disabled = true;
+  clearErrors(form);
+  try {
+    await fn();
+  } catch {
+    toast("err", "Сервер недоступен");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// UTC offsets for the timezone selects: whole hours plus the common half/quarter ones
+const TZ_OFFSETS = (() => {
+  const mins = [];
+  for (let h = -12; h <= 14; h++) mins.push(h * 60);
+  mins.push(210, 270, 330, 345, 390, 570, -210);
+  return [...new Set(mins)].sort((a, b) => a - b).map(m => {
+    const sign = m < 0 ? "-" : "+", a = Math.abs(m);
+    return `${sign}${pad(Math.floor(a / 60))}:${pad(a % 60)}`;
+  });
+})();
+document.querySelectorAll(".tz-select").forEach(sel => {
+  sel.innerHTML = TZ_OFFSETS.map(o => `<option value="${o}">UTC${o === "+00:00" ? "" : o}</option>`).join("");
+});
+
+/* ---------- routing between screens ---------- */
+
+function setHeader() {
+  const logged = !!me;
+  $("who").hidden = $("navDiary").hidden = $("navProfile").hidden = $("logoutBtn").hidden = !logged;
+  if (logged) {
+    $("who").textContent = me.car ? `${me.name} · ${me.car}` : me.name;
+    $("who").title = me.email;
+  }
+  const onProfile = location.hash === "#profile";
+  $("navDiary").classList.toggle("active", logged && !onProfile);
+  $("navProfile").classList.toggle("active", logged && onProfile);
+}
+
+function route() {
+  setHeader();
+  const view = !me ? "auth" : location.hash === "#profile" ? "profile" : "diary";
+  $("authView").hidden = view !== "auth";
+  $("diaryView").hidden = view !== "diary";
+  $("profileView").hidden = view !== "profile";
+  if (view === "diary") enterDiary();
+  if (view === "profile") fillProfile();
+}
+window.addEventListener("hashchange", route);
+
+/* ---------- login / registration ---------- */
+
+function showTab(tab) {
+  const login = tab === "login";
+  $("tabLogin").classList.toggle("active", login);
+  $("tabRegister").classList.toggle("active", !login);
+  $("loginForm").hidden = !login;
+  $("registerForm").hidden = login;
+  (login ? $("loginForm") : $("registerForm")).querySelector("input").focus();
+}
+$("tabLogin").onclick = () => showTab("login");
+$("tabRegister").onclick = () => showTab("register");
+
+function signedIn(profile) {
+  me = profile;
+  days = []; current = null;
+  $("loginForm").reset(); $("registerForm").reset();
+  if (location.hash === "#profile") location.hash = "";
+  route();
+}
+
+$("loginForm").onsubmit = e => {
+  e.preventDefault();
+  const form = e.target, f = new FormData(form);
+  submitting(form, async () => {
+    const res = await api("/api/auth/login", { method: "POST", json: { email: f.get("email"), password: f.get("password") } });
+    if (res.ok) return signedIn(res.body);
+    if (isValidation(res)) return showValidation(form, res);
+    if (res.status === 401) return toast("err", "Неверный e-mail или пароль");
+    if (res.status === 429) return toast("err", retryText(res));
+    toast("err", `Ошибка сервера (${res.status})`);
+  });
+};
+
+$("registerForm").onsubmit = e => {
+  e.preventDefault();
+  const form = e.target, f = new FormData(form);
+  submitting(form, async () => {
+    const res = await api("/api/auth/register", {
+      method: "POST", json: { name: f.get("name"), email: f.get("email"), password: f.get("password") },
+    });
+    if (res.ok) { toast("ok", "Аккаунт создан"); return signedIn(res.body); }
+    if (isValidation(res)) return showValidation(form, res);
+    if (res.status === 409) return setFieldError(form, "email", "Этот e-mail уже зарегистрирован");
+    toast("err", `Ошибка сервера (${res.status})`);
+  });
+};
+
+$("logoutBtn").onclick = async () => {
+  try { await api("/api/auth/logout", { method: "POST", json: {} }); } catch {}
+  me = null;
+  location.hash = "";
+  route();
+};
+
+/* ---------- profile ---------- */
+
+function fillProfile() {
+  const form = $("profileForm");
+  clearErrors(form);
+  form.email.value = me.email;
+  form.elements.name.value = me.name;
+  form.car.value = me.car;
+  form.default_tz.value = me.default_tz;
+  form.default_commission_pct.value = me.default_commission_pct ?? "";
+}
+
+$("profileForm").onsubmit = e => {
+  e.preventDefault();
+  const form = e.target;
+  const pct = form.default_commission_pct.value;
+  submitting(form, async () => {
+    const res = await api("/api/me", {
+      method: "PATCH",
+      json: {
+        name: form.elements.name.value,
+        car: form.car.value,
+        default_tz: form.default_tz.value,
+        default_commission_pct: pct === "" ? null : Number(pct),
+      },
+    });
+    if (res.ok) { me = res.body; setHeader(); fillProfile(); return toast("ok", "Профиль сохранён"); }
+    if (isValidation(res)) return showValidation(form, res);
+    if (res.status !== 401) toast("err", `Ошибка сервера (${res.status})`);
+  });
+};
+
+$("deleteOpen").onclick = () => {
+  const form = $("deleteForm");
+  form.reset(); clearErrors(form);
+  $("deleteDialog").showModal();
+  form.password.focus();
+};
+$("deleteCancel").onclick = () => $("deleteDialog").close();
+
+$("deleteForm").onsubmit = e => {
+  e.preventDefault();
+  const form = e.target;
+  submitting(form, async () => {
+    const res = await api("/api/me", { method: "DELETE", json: { password: form.password.value } });
+    if (res.status === 204) {
+      $("deleteDialog").close();
+      me = null;
+      location.hash = "";
+      route();
+      return toast("ok", "Аккаунт и все поездки удалены");
+    }
+    if (isValidation(res)) return showValidation(form, res);
+    if (res.status === 403) return setFieldError(form, "password", "Неверный пароль");
+    if (res.status === 429) return setFieldError(form, "password", retryText(res));
+    if (res.status !== 401) toast("err", `Ошибка сервера (${res.status})`);
+  });
+};
 
 /* ---------- day navigation ---------- */
 
@@ -361,7 +753,8 @@ function updateArrows() {
 }
 
 async function loadDays() {
-  days = (await api("/api/days")).body || [];
+  const res = await api("/api/days");
+  days = res.ok ? res.body : [];
 }
 
 /* ---------- selected day ---------- */
@@ -403,7 +796,7 @@ async function showDay(d) {
   renderDayList();
   updateArrows();
   const [list, summary] = await Promise.all([api(`/api/trips?date=${d}`), api(`/api/summary?date=${d}`)]);
-  if (current !== d) return; // the user has already switched to another day
+  if (current !== d || !list.ok || !summary.ok) return; // switched day, or logged out meanwhile
   renderTrips(list.body);
   renderStats(summary.body);
 }
@@ -416,50 +809,41 @@ for (const id of ["cal", "dayList"]) {
   $(id).onclick = e => { const b = e.target.closest("[data-day]"); if (b) showDay(b.dataset.day); };
 }
 
+async function enterDiary() {
+  resetTripForm();
+  if (current) return showDay(current);
+  await loadDays();
+  if (!me) return;
+  await showDay(days.length ? days.at(-1).date : isoDate(new Date()));
+}
+
 /* ---------- add-trip form ---------- */
 
 const form = $("addForm");
+// Commission is auto-filled from the profile percent until the driver types it by hand
+let commissionTouched = false;
 
-// Server error types -> Russian messages. Custom types come from app/models.py.
-function errorMessage(e) {
-  switch (e.type) {
-    case "missing": return "Заполните поле";
-    case "greater_than": return `Должно быть больше ${e.ctx.gt}`;
-    case "greater_than_equal": return `Не может быть меньше ${e.ctx.ge}`;
-    case "int_parsing": case "int_type": case "int_from_float": return "Введите целое число";
-    case "datetime_parsing": case "datetime_type": case "datetime_from_date_parsing": return "Укажите дату и время";
-    case "literal_error": return "Выберите значение из списка";
-    case "timezone_required": return "Укажите часовой пояс";
-    case "end_before_start": return "Окончание должно быть позже начала";
-    case "commission_exceeds_amount": return "Комиссия не может превышать сумму";
-    default: return e.msg;
-  }
+function resetTripForm() {
+  form.reset();
+  clearErrors(form);
+  commissionTouched = false;
+  form.tz.value = me.default_tz;
+  const pct = me.default_commission_pct;
+  $("commissionHint").textContent = pct == null ? "" : `Авто: ${String(pct).replace(".", ",")}% от суммы`;
 }
 
-function clearErrors() {
-  form.querySelectorAll(".field").forEach(f => {
-    f.classList.remove("invalid");
-    f.querySelector(".error").textContent = "";
-  });
-}
-
-function setFieldError(name, text) {
-  const f = form.querySelector(`.field[data-field="${name}"]`);
-  if (!f) return false;
-  f.classList.add("invalid");
-  f.querySelector(".error").textContent = text;
-  return true;
-}
-
-// Clear a field's error as soon as the user edits it
-form.addEventListener("input", e => {
-  const f = e.target.closest(".field");
-  if (f) { f.classList.remove("invalid"); f.querySelector(".error").textContent = ""; }
+form.amount.addEventListener("input", () => {
+  const pct = me.default_commission_pct;
+  if (pct == null || commissionTouched) return;
+  const amount = Number(form.amount.value);
+  form.commission.value = form.amount.value === "" ? "" : Math.round(amount * pct / 100);
+});
+form.commission.addEventListener("input", () => {
+  commissionTouched = form.commission.value !== "";
 });
 
-form.onsubmit = async e => {
+form.onsubmit = e => {
   e.preventDefault();
-  clearErrors();
   const f = new FormData(form);
   const tz = f.get("tz");
   // datetime-local yields "YYYY-MM-DDTHH:MM"; append seconds and the offset.
@@ -473,31 +857,19 @@ form.onsubmit = async e => {
     commission: num(f.get("commission")),
     payment: f.get("payment"),
   };
-
-  const btn = form.querySelector("button[type=submit]");
-  btn.disabled = true;
-  try {
-    const res = await api("/api/trips", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
-    });
-    if (res.status === 422 && Array.isArray(res.body?.detail)) {
-      const unplaced = res.body.detail.filter(err => !setFieldError(err.loc.at(-1), errorMessage(err)));
-      if (unplaced.length) toast("err", unplaced.map(errorMessage).join("; "));
-      return;
-    }
+  submitting(form, async () => {
+    const res = await api("/api/trips", { method: "POST", json: payload });
+    if (isValidation(res)) return showValidation(form, res);
+    if (res.status === 401) return;
     if (res.status === 409) return toast("err", "Поездка с таким id уже есть, но с другими данными");
     if (!res.ok) return toast("err", `Ошибка сервера (${res.status})`);
 
     if (res.status === 201) toast("ok", "Поездка добавлена");
     else toast("info", "Такая поездка уже есть — дубль не создан");
-    form.reset();
+    resetTripForm();
     await loadDays();
     await showDay(res.body.start.slice(0, 10));
-  } catch {
-    toast("err", "Сервер недоступен");
-  } finally {
-    btn.disabled = false;
-  }
+  });
 };
 
 /* ---------- theme switcher ---------- */
@@ -532,11 +904,12 @@ applyTheme(currentTheme());
 
 (async () => {
   try {
-    await loadDays();
+    const res = await api("/api/me");
+    me = res.ok ? res.body : null;
   } catch {
     toast("err", "Сервер недоступен");
   }
-  showDay(days.length ? days.at(-1).date : isoDate(new Date()));
+  route();
 })();
 </script>
 </body>
