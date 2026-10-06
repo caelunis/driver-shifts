@@ -48,6 +48,17 @@ def authenticate(pool: ConnectionPool, email: str, password: str) -> int | None:
     return row["id"] if verify_password(password, row["password_hash"]) else None
 
 
+def check_password(pool: ConnectionPool, driver_id: int, password: str) -> bool:
+    with pool.connection() as conn:
+        row = conn.execute("SELECT password_hash FROM drivers WHERE id = %s", (driver_id,)).fetchone()
+    return bool(row) and verify_password(password, row["password_hash"])
+
+
+def delete_driver(pool: ConnectionPool, driver_id: int) -> None:
+    with pool.connection() as conn:
+        conn.execute("DELETE FROM drivers WHERE id = %s", (driver_id,))
+
+
 def create_session(pool: ConnectionPool, driver_id: int) -> str:
     token = secrets.token_urlsafe(32)
     with pool.connection() as conn:

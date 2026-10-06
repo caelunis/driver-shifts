@@ -140,6 +140,10 @@ class LoginIn(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
+class DeleteAccountIn(BaseModel):
+    password: str = Field(min_length=1, max_length=128)
+
+
 class Profile(BaseModel):
     id: int
     email: str

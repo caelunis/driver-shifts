@@ -10,7 +10,8 @@ from psycopg_pool import ConnectionPool
 from . import accounts
 from .db import DEFAULT_DATABASE_URL, init_schema, open_pool
 from .models import (
-    DayInfo, DaySummary, LoginIn, Profile, ProfileUpdate, RegisterIn, Trip, TripIn,
+    DayInfo, DaySummary, DeleteAccountIn, LoginIn, Profile, ProfileUpdate, RegisterIn, Trip,
+    TripIn,
 )
 from .security import LoginLimiter
 from .seed import seed_demo
@@ -53,15 +54,6 @@ def set_session_cookie(response: Response, token: str) -> None:
         SESSION_COOKIE, token, max_age=int(accounts.SESSION_TTL.total_seconds()),
         httponly=True, samesite="lax", secure=COOKIE_SECURE, path="/",
     )
-
-
-def current_driver_id(storage: TripStorage = Depends(get_storage)) -> int:
-    # TEMPORARY until authentication is added: everything belongs to the first driver.
-    with storage.pool.connection() as conn:
-        row = conn.execute("SELECT id FROM drivers ORDER BY id LIMIT 1").fetchone()
-    if not row:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "No drivers yet")
-    return row["id"]
 
 
 def create_app(pool: ConnectionPool | None = None) -> FastAPI:
@@ -132,25 +124,43 @@ def create_app(pool: ConnectionPool | None = None) -> FastAPI:
                   driver_id: int = Depends(session_driver_id)):
         return accounts.update_profile(storage.pool, driver_id, changes.model_dump(exclude_unset=True))
 
+    @app.delete("/api/me", status_code=status.HTTP_204_NO_CONTENT)
+    def delete_me(data: DeleteAccountIn, request: Request, response: Response,
+                  storage: TripStorage = Depends(get_storage),
+                  driver_id: int = Depends(session_driver_id)):
+        # Re-check the password: a stolen cookie alone must not be enough to wipe the account.
+        # Same failure limit as login, so the password cannot be brute-forced from here either.
+        limiter: LoginLimiter = request.app.state.login_limiter
+        key = f"delete:{driver_id}"
+        if wait := limiter.retry_after(key):
+            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many failed attempts",
+                                headers={"Retry-After": str(wait)})
+        if not accounts.check_password(storage.pool, driver_id, data.password):
+            limiter.failure(key)
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Wrong password")
+        limiter.success(key)
+        accounts.delete_driver(storage.pool, driver_id)  # trips and sessions go via ON DELETE CASCADE
+        response.delete_cookie(SESSION_COOKIE, path="/")
+
     # --- trips ---
 
     @app.get("/api/days", response_model=list[DayInfo])
-    def list_days(storage: TripStorage = Depends(get_storage), driver_id: int = Depends(current_driver_id)):
+    def list_days(storage: TripStorage = Depends(get_storage), driver_id: int = Depends(session_driver_id)):
         return storage.days(driver_id)
 
     @app.get("/api/trips", response_model=list[Trip])
     def list_trips(date: date, storage: TripStorage = Depends(get_storage),
-                   driver_id: int = Depends(current_driver_id)):
+                   driver_id: int = Depends(session_driver_id)):
         return storage.for_day(driver_id, date)
 
     @app.get("/api/summary", response_model=DaySummary)
     def day_summary(date: date, storage: TripStorage = Depends(get_storage),
-                    driver_id: int = Depends(current_driver_id)):
+                    driver_id: int = Depends(session_driver_id)):
         return summarize(storage.for_day(driver_id, date), date)
 
     @app.post("/api/trips", response_model=Trip, status_code=status.HTTP_201_CREATED)
     def add_trip(trip_in: TripIn, response: Response, storage: TripStorage = Depends(get_storage),
-                 driver_id: int = Depends(current_driver_id)):
+                 driver_id: int = Depends(session_driver_id)):
         try:
             trip, created = storage.add(driver_id, trip_in.to_trip())
         except TripConflict as e:

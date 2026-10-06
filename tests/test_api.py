@@ -12,9 +12,13 @@ T2 = {"id": "t2", "start": "2026-10-01T09:05:00+05:00", "end": "2026-10-01T09:20
 
 @pytest.fixture
 def client(db, storage, driver_id):
+    """Logged-in client of the conftest driver, who already has trips T1 and T2."""
     for t in (T1, T2):
         storage.add(driver_id, TripIn(**t).to_trip())
-    return TestClient(create_app(db))
+    c = TestClient(create_app(db))
+    r = c.post("/api/auth/login", json={"email": "driver@example.com", "password": "password123"})
+    assert r.status_code == 200
+    return c
 
 
 def stored_count(db):
