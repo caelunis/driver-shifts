@@ -1,0 +1,15 @@
+.venv/
+.git/
+.gitignore
+.idea/
+.pytest_cache/
+.playwright-mcp/
+__pycache__/
+*.pyc
+.env
+docs/
+tests/
+db/
+Dockerfile
+docker-compose.yml
+.dockerignore

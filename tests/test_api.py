@@ -32,6 +32,10 @@ def count_trips(client, day="2026-10-01"):
 
 # --- reading ---
 
+def test_health(db):
+    assert TestClient(create_app(db)).get("/api/health").json() == {"status": "ok"}
+
+
 def test_list_trips_and_summary(client):
     trips = client.get("/api/trips", params={"date": "2026-10-01"}).json()
     assert [t["id"] for t in trips] == ["t1", "t2"]

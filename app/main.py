@@ -79,6 +79,16 @@ def create_app(pool: ConnectionPool | None = None) -> FastAPI:
         app.state.storage = TripStorage(pool)
     app.state.login_limiter = LoginLimiter()
 
+    @app.get("/api/health")
+    def health(storage: TripStorage = Depends(get_storage)):
+        """Liveness + database check, used by the Docker healthcheck."""
+        try:
+            with storage.pool.connection(timeout=2) as conn:
+                conn.execute("SELECT 1")
+        except Exception:
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Database unavailable")
+        return {"status": "ok"}
+
     # --- accounts ---
 
     @app.post("/api/auth/register", response_model=Profile, status_code=status.HTTP_201_CREATED)
