@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Дневник смен</title>
+<script>
+  // Apply the saved theme before first paint to avoid a flash of the wrong theme
+  try {
+    const t = localStorage.getItem("theme");
+    if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+  } catch {}
+</script>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --text: #1b1d21; --muted: #6b7280;
+    --border: #e3e5e9; --hover: #f0f2f5; --accent: #2563eb; --accent-text: #fff;
+    --accent-soft: #e0e9ff; --ok: #15803d; --ok-bg: #dcfce7;
+    --err: #b91c1c; --err-bg: #fee2e2; --info: #1e40af; --info-bg: #dbeafe;
+    --cash: #b45309; --card-pay: #1d4ed8; --shadow: 0 8px 24px rgba(0,0,0,.12);
+    color-scheme: light;
+  }
+  /* Theme: follows the OS unless the user picked one (data-theme on <html>) */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #111317; --card: #1b1e24; --text: #e8eaed; --muted: #9aa0a9;
+      --border: #2c3038; --hover: #252930; --accent: #3b82f6; --accent-text: #fff;
+      --accent-soft: #1e2a44; --ok: #4ade80; --ok-bg: #14301f;
+      --err: #f87171; --err-bg: #3a1717; --info: #93c5fd; --info-bg: #172554;
+      --cash: #fbbf24; --card-pay: #93c5fd; --shadow: 0 8px 24px rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #111317; --card: #1b1e24; --text: #e8eaed; --muted: #9aa0a9;
+    --border: #2c3038; --hover: #252930; --accent: #3b82f6; --accent-text: #fff;
+    --accent-soft: #1e2a44; --ok: #4ade80; --ok-bg: #14301f;
+    --err: #f87171; --err-bg: #3a1717; --info: #93c5fd; --info-bg: #172554;
+    --cash: #fbbf24; --card-pay: #93c5fd; --shadow: 0 8px 24px rgba(0,0,0,.5);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    max-width: 1400px; margin: 0 auto; padding: 20px 16px 16px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  h1 { font-size: 22px; margin: 0; }
+  #themeBtn { white-space: nowrap; }
+  h2 { font-size: 16px; margin: 0 0 12px; }
+
+  /* Three columns: day navigation | day content | add-trip form */
+  .layout {
+    max-width: 1400px; margin: 0 auto; padding: 0 16px 48px;
+    display: grid; grid-template-columns: 280px minmax(0, 1fr) 320px;
+    gap: 16px; align-items: start;
+  }
+  .side { position: sticky; top: 16px; }
+  @media (max-width: 1150px) {
+    .layout { grid-template-columns: 260px minmax(0, 1fr); }
+    .form-col { grid-column: 2; }
+    .side { position: static; }
+  }
+  @media (max-width: 760px) {
+    .layout { grid-template-columns: minmax(0, 1fr); row-gap: 0; }
+    .form-col { grid-column: auto; }
+  }
+
+  .panel {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px; margin-bottom: 16px;
+  }
+  button, input, select {
+    font: inherit; color: inherit; background: var(--card);
+    border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px;
+  }
+  button { cursor: pointer; }
+  button:hover:not(:disabled) { background: var(--hover); }
+  button:disabled { opacity: .4; cursor: default; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); width: 100%; padding: 10px; }
+  button.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
+
+  /* Calendar */
+  .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .cal-head .month { font-weight: 600; }
+  .cal-head button { padding: 4px 10px; }
+  .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+  .cal .wd { font-size: 11px; color: var(--muted); padding: 4px 0; }
+  .cal .d {
+    border: 0; background: none; padding: 7px 0; border-radius: 8px; font-size: 14px;
+    position: relative; font-variant-numeric: tabular-nums;
+  }
+  .cal .d.has { font-weight: 600; }
+  .cal .d.has::after {
+    content: ""; position: absolute; left: 50%; bottom: 3px; width: 4px; height: 4px;
+    margin-left: -2px; border-radius: 50%; background: var(--accent);
+  }
+  .cal .d.today { outline: 1px solid var(--border); }
+  .cal .d.sel { background: var(--accent); color: var(--accent-text); }
+  .cal .d.sel::after { background: var(--accent-text); }
+
+  /* Day list */
+  .days { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto; }
+  .days button {
+    width: 100%; display: flex; justify-content: space-between; gap: 8px;
+    border: 0; background: none; padding: 8px 10px; text-align: left; font-variant-numeric: tabular-nums;
+  }
+  .days button.sel { background: var(--accent-soft); }
+  .days .meta { color: var(--muted); font-size: 13px; white-space: nowrap; }
+  .days .empty { color: var(--muted); font-size: 14px; padding: 8px 10px; }
+
+  /* Day header and summary */
+  .daybar { display: flex; align-items: center; gap: 8px; }
+  .daybar .title { font-size: 18px; font-weight: 600; flex: 1; text-align: center; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  @media (max-width: 520px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+  .stat { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .stat .label { color: var(--muted); font-size: 13px; }
+  .stat .value { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stat .sub { color: var(--muted); font-size: 12px; min-height: 17px; }
+  .stat.net .value { color: var(--ok); }
+
+  /* Trips table */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; font-size: 13px; }
+  td.num, th.num { text-align: right; }
+  .pay { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; border: 1px solid currentColor; }
+  .pay.cash { color: var(--cash); } .pay.card { color: var(--card-pay); }
+  td.empty { color: var(--muted); padding: 24px 0; text-align: center; }
+  @media (max-width: 520px) {
+    .hide-sm { display: none; }
+    table { font-size: 14px; }
+    th, td { padding: 8px 3px; }
+    .pay { padding: 2px 6px; }
+  }
+
+  /* Form */
+  form { display: flex; flex-direction: column; gap: 12px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .field > span { font-size: 13px; color: var(--muted); }
+  .field input, .field select { width: 100%; min-width: 0; color: var(--text); }
+  .field.invalid input, .field.invalid select { border-color: var(--err); }
+  .field .error { color: var(--err); font-size: 12px; min-height: 0; }
+  .field .error:empty { display: none; }
+
+  /* Toasts */
+  #toasts {
+    position: fixed; top: 16px; right: 16px; z-index: 10;
+    display: flex; flex-direction: column; gap: 8px; width: min(360px, calc(100vw - 32px));
+  }
+  .toast {
+    display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px;
+    border-radius: 10px; box-shadow: var(--shadow); border: 1px solid var(--border);
+    background: var(--card); animation: slide-in .2s ease-out;
+  }
+  .toast.ok { background: var(--ok-bg); color: var(--ok); }
+  .toast.err { background: var(--err-bg); color: var(--err); }
+  .toast.info { background: var(--info-bg); color: var(--info); }
+  .toast .text { flex: 1; }
+  .toast button { border: 0; background: none; color: inherit; padding: 0 2px; font-size: 18px; line-height: 1; }
+  .toast.hide { opacity: 0; transform: translateY(-6px); transition: .2s; }
+  @keyframes slide-in { from { opacity: 0; transform: translateY(-6px); } }
+  @media (max-width: 520px) { #toasts { top: auto; bottom: 16px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Дневник смен водителя</h1>
+  <button id="themeBtn" type="button"></button>
+</header>
+
+<div class="layout">
+  <aside class="side">
+    <section class="panel">
+      <div class="cal-head">
+        <button id="calPrev" title="Предыдущий месяц">‹</button>
+        <span class="month" id="calMonth"></span>
+        <button id="calNext" title="Следующий месяц">›</button>
+      </div>
+      <div class="cal" id="cal"></div>
+    </section>
+    <section class="panel">
+      <h2>Дни с поездками</h2>
+      <ul class="days" id="dayList"></ul>
+    </section>
+  </aside>
+
+  <main>
+    <section class="panel daybar">
+      <button id="prev" title="Предыдущий день с поездками">←</button>
+      <div class="title" id="dayTitle">…</div>
+      <button id="next" title="Следующий день с поездками">→</button>
+    </section>
+
+    <section class="panel">
+      <h2>Сводка за день</h2>
+      <div class="stats" id="stats"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Поездки</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Время</th><th class="hide-sm">Длит.</th><th>Оплата</th>
+              <th class="num">Сумма</th><th class="num">Комиссия</th><th class="num hide-sm">На руки</th>
+            </tr>
+          </thead>
+          <tbody id="trips"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <aside class="side form-col">
+    <section class="panel">
+      <h2>Добавить поездку</h2>
+      <form id="addForm" novalidate>
+        <label class="field" data-field="start">
+          <span>Начало</span>
+          <input type="datetime-local" name="start">
+          <small class="error"></small>
+        </label>
+        <label class="field" data-field="end">
+          <span>Окончание</span>
+          <input type="datetime-local" name="end">
+          <small class="error"></small>
+        </label>
+        <div class="row">
+          <label class="field" data-field="amount">
+            <span>Сумма, ₸</span>
+            <input type="number" name="amount" min="1" step="1" inputmode="numeric">
+            <small class="error"></small>
+          </label>
+          <label class="field" data-field="commission">
+            <span>Комиссия, ₸</span>
+            <input type="number" name="commission" min="0" step="1" inputmode="numeric">
+            <small class="error"></small>
+          </label>
+        </div>
+        <div class="row">
+          <label class="field" data-field="payment">
+            <span>Оплата</span>
+            <select name="payment">
+              <option value="card">Карта</option>
+              <option value="cash">Наличные</option>
+            </select>
+            <small class="error"></small>
+          </label>
+          <label class="field" data-field="tz">
+            <span>Часовой пояс</span>
+            <select name="tz">
+              <option value="+05:00" selected>UTC+05:00</option>
+              <option value="+06:00">UTC+06:00</option>
+              <option value="+03:00">UTC+03:00</option>
+              <option value="+00:00">UTC</option>
+            </select>
+            <small class="error"></small>
+          </label>
+        </div>
+        <button type="submit" class="primary">Добавить</button>
+      </form>
+    </section>
+  </aside>
+</div>
+
+<div id="toasts" aria-live="polite"></div>
+
+<script>
+const money = new Intl.NumberFormat("ru-RU");
+const fmt = n => money.format(n) + " ₸";
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad = n => String(n).padStart(2, "0");
+const isoDate = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseDay = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+
+// Russian plural: plural(1, "поездка", "поездки", "поездок") -> "1 поездка"
+function plural(n, one, few, many) {
+  const m10 = n % 10, m100 = n % 100;
+  const word = m10 === 1 && m100 !== 11 ? one
+    : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? few : many;
+  return `${n} ${word}`;
+}
+const trips = n => plural(n, "поездка", "поездки", "поездок");
+
+let days = [];        // [{date, count, net}] — days that have trips
+let current = null;   // selected day, YYYY-MM-DD
+let calView = null;   // first day of the month shown in the calendar
+
+// Times are shown as written in the trip (its own local time), not in the
+// browser's timezone — the same rule the server uses to assign a trip to a day.
+const hhmm = iso => iso.slice(11, 16);
+const minutes = (a, b) => Math.round((new Date(b) - new Date(a)) / 60000);
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  let body = null;
+  try { body = await r.json(); } catch {}
+  return { status: r.status, ok: r.ok, body };
+}
+
+/* ---------- toasts ---------- */
+
+function toast(kind, text, ms = 4000) {
+  const el = document.createElement("div");
+  el.className = `toast ${kind}`;
+  el.setAttribute("role", kind === "err" ? "alert" : "status");
+  el.innerHTML = `<div class="text">${esc(text)}</div><button aria-label="Закрыть">×</button>`;
+  const close = () => { el.classList.add("hide"); setTimeout(() => el.remove(), 200); };
+  el.querySelector("button").onclick = close;
+  $("toasts").append(el);
+  setTimeout(close, ms);
+}
+
+/* ---------- day navigation ---------- */
+
+function renderCalendar() {
+  const y = calView.getFullYear(), m = calView.getMonth();
+  const month = calView.toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
+  $("calMonth").textContent = month[0].toUpperCase() + month.slice(1);
+  const withTrips = new Set(days.map(d => d.date));
+  const today = isoDate(new Date());
+  const offset = (new Date(y, m, 1).getDay() + 6) % 7; // Monday-first week
+  const total = new Date(y, m + 1, 0).getDate();
+
+  let html = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map(w => `<div class="wd">${w}</div>`).join("");
+  html += "<div></div>".repeat(offset);
+  for (let d = 1; d <= total; d++) {
+    const iso = `${y}-${pad(m + 1)}-${pad(d)}`;
+    const cls = ["d", withTrips.has(iso) && "has", iso === current && "sel", iso === today && "today"]
+      .filter(Boolean).join(" ");
+    html += `<button class="${cls}" data-day="${iso}">${d}</button>`;
+  }
+  $("cal").innerHTML = html;
+}
+
+function renderDayList() {
+  if (!days.length) {
+    $("dayList").innerHTML = `<li class="empty">Поездок пока нет</li>`;
+    return;
+  }
+  // Newest first: the driver usually looks at recent shifts
+  $("dayList").innerHTML = [...days].reverse().map(d => {
+    const label = parseDay(d.date).toLocaleDateString("ru-RU", { day: "numeric", month: "short", weekday: "short" });
+    return `<li><button class="${d.date === current ? "sel" : ""}" data-day="${d.date}">
+      <span>${label}</span><span class="meta">${trips(d.count)} · ${fmt(d.net)}</span></button></li>`;
+  }).join("");
+}
+
+function updateArrows() {
+  $("prev").disabled = !days.some(d => d.date < current);
+  $("next").disabled = !days.some(d => d.date > current);
+}
+
+async function loadDays() {
+  days = (await api("/api/days")).body || [];
+}
+
+/* ---------- selected day ---------- */
+
+function renderStats(s) {
+  const stat = (label, value, sub = "", cls = "") =>
+    `<div class="stat ${cls}"><div class="label">${label}</div><div class="value">${value}</div><div class="sub">${sub}</div></div>`;
+  $("stats").innerHTML =
+    stat("Поездок", s.count) +
+    stat("Выручка", fmt(s.revenue)) +
+    stat("Комиссия", fmt(s.commission)) +
+    stat("На руки", fmt(s.net), "выручка − комиссия", "net") +
+    stat("Наличные", fmt(s.cash.amount), trips(s.cash.count)) +
+    stat("Карта", fmt(s.card.amount), trips(s.card.count));
+}
+
+function renderTrips(list) {
+  if (!list.length) {
+    $("trips").innerHTML = `<tr><td colspan="6" class="empty">В этот день поездок нет</td></tr>`;
+    return;
+  }
+  $("trips").innerHTML = list.map(t => `
+    <tr>
+      <td>${hhmm(t.start)}–${hhmm(t.end)}</td>
+      <td class="hide-sm">${minutes(t.start, t.end)} мин</td>
+      <td><span class="pay ${t.payment}">${t.payment === "cash" ? "Наличные" : "Карта"}</span></td>
+      <td class="num">${fmt(t.amount)}</td>
+      <td class="num">${fmt(t.commission)}</td>
+      <td class="num hide-sm">${fmt(t.amount - t.commission)}</td>
+    </tr>`).join("");
+}
+
+async function showDay(d) {
+  current = d;
+  const day = parseDay(d);
+  calView = new Date(day.getFullYear(), day.getMonth(), 1);
+  $("dayTitle").textContent = day.toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  renderCalendar();
+  renderDayList();
+  updateArrows();
+  const [list, summary] = await Promise.all([api(`/api/trips?date=${d}`), api(`/api/summary?date=${d}`)]);
+  if (current !== d) return; // the user has already switched to another day
+  renderTrips(list.body);
+  renderStats(summary.body);
+}
+
+$("prev").onclick = () => showDay(days.filter(d => d.date < current).at(-1).date);
+$("next").onclick = () => showDay(days.find(d => d.date > current).date);
+$("calPrev").onclick = () => { calView.setMonth(calView.getMonth() - 1); renderCalendar(); };
+$("calNext").onclick = () => { calView.setMonth(calView.getMonth() + 1); renderCalendar(); };
+for (const id of ["cal", "dayList"]) {
+  $(id).onclick = e => { const b = e.target.closest("[data-day]"); if (b) showDay(b.dataset.day); };
+}
+
+/* ---------- add-trip form ---------- */
+
+const form = $("addForm");
+
+// Server error types -> Russian messages. Custom types come from app/models.py.
+function errorMessage(e) {
+  switch (e.type) {
+    case "missing": return "Заполните поле";
+    case "greater_than": return `Должно быть больше ${e.ctx.gt}`;
+    case "greater_than_equal": return `Не может быть меньше ${e.ctx.ge}`;
+    case "int_parsing": case "int_type": case "int_from_float": return "Введите целое число";
+    case "datetime_parsing": case "datetime_type": case "datetime_from_date_parsing": return "Укажите дату и время";
+    case "literal_error": return "Выберите значение из списка";
+    case "timezone_required": return "Укажите часовой пояс";
+    case "end_before_start": return "Окончание должно быть позже начала";
+    case "commission_exceeds_amount": return "Комиссия не может превышать сумму";
+    default: return e.msg;
+  }
+}
+
+function clearErrors() {
+  form.querySelectorAll(".field").forEach(f => {
+    f.classList.remove("invalid");
+    f.querySelector(".error").textContent = "";
+  });
+}
+
+function setFieldError(name, text) {
+  const f = form.querySelector(`.field[data-field="${name}"]`);
+  if (!f) return false;
+  f.classList.add("invalid");
+  f.querySelector(".error").textContent = text;
+  return true;
+}
+
+// Clear a field's error as soon as the user edits it
+form.addEventListener("input", e => {
+  const f = e.target.closest(".field");
+  if (f) { f.classList.remove("invalid"); f.querySelector(".error").textContent = ""; }
+});
+
+form.onsubmit = async e => {
+  e.preventDefault();
+  clearErrors();
+  const f = new FormData(form);
+  const tz = f.get("tz");
+  // datetime-local yields "YYYY-MM-DDTHH:MM"; append seconds and the offset.
+  // Empty fields are sent as undefined (dropped from JSON) so the server reports "missing".
+  const withTz = v => v ? `${v}:00${tz}` : undefined;
+  const num = v => v === "" ? undefined : Number(v);
+  const payload = {
+    start: withTz(f.get("start")),
+    end: withTz(f.get("end")),
+    amount: num(f.get("amount")),
+    commission: num(f.get("commission")),
+    payment: f.get("payment"),
+  };
+
+  const btn = form.querySelector("button[type=submit]");
+  btn.disabled = true;
+  try {
+    const res = await api("/api/trips", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    });
+    if (res.status === 422 && Array.isArray(res.body?.detail)) {
+      const unplaced = res.body.detail.filter(err => !setFieldError(err.loc.at(-1), errorMessage(err)));
+      if (unplaced.length) toast("err", unplaced.map(errorMessage).join("; "));
+      return;
+    }
+    if (res.status === 409) return toast("err", "Поездка с таким id уже есть, но с другими данными");
+    if (!res.ok) return toast("err", `Ошибка сервера (${res.status})`);
+
+    if (res.status === 201) toast("ok", "Поездка добавлена");
+    else toast("info", "Такая поездка уже есть — дубль не создан");
+    form.reset();
+    await loadDays();
+    await showDay(res.body.start.slice(0, 10));
+  } catch {
+    toast("err", "Сервер недоступен");
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+/* ---------- theme switcher ---------- */
+
+// Cycle: light -> dark -> system. "system" means no data-theme attribute.
+const THEMES = {
+  light:  { label: "☀️ Светлая", title: "Тема: светлая. Нажмите для тёмной" },
+  dark:   { label: "🌙 Тёмная", title: "Тема: тёмная. Нажмите, чтобы следовать системе" },
+  system: { label: "🖥 Как в системе", title: "Тема: как в системе. Нажмите для светлой" },
+};
+const NEXT_THEME = { light: "dark", dark: "system", system: "light" };
+
+function currentTheme() {
+  return document.documentElement.dataset.theme || "system";
+}
+
+function applyTheme(theme) {
+  if (theme === "system") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = theme;
+  try {
+    if (theme === "system") localStorage.removeItem("theme");
+    else localStorage.setItem("theme", theme);
+  } catch {}
+  $("themeBtn").textContent = THEMES[theme].label;
+  $("themeBtn").title = THEMES[theme].title;
+}
+
+$("themeBtn").onclick = () => applyTheme(NEXT_THEME[currentTheme()]);
+applyTheme(currentTheme());
+
+/* ---------- start ---------- */
+
+(async () => {
+  try {
+    await loadDays();
+  } catch {
+    toast("err", "Сервер недоступен");
+  }
+  showDay(days.length ? days.at(-1).date : isoDate(new Date()));
+})();
+</script>
+</body>
+</html>
