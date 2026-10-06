@@ -16,7 +16,8 @@ class TripIn(BaseModel):
     end: datetime
     amount: int = Field(gt=0, description="Trip amount, KZT")
     payment: Payment
-    commission: int = Field(ge=0, description="Commission, KZT")
+    # Omitted when the admin set a commission percent for the driver: the server computes it
+    commission: Optional[int] = Field(default=None, ge=0, description="Commission, KZT")
 
     # Cross-field checks are field validators rather than one model validator:
     # a model validator only runs when every field is valid, so the client would
@@ -42,9 +43,9 @@ class TripIn(BaseModel):
 
     @field_validator("commission")
     @classmethod
-    def commission_within_amount(cls, v: int, info: ValidationInfo) -> int:
+    def commission_within_amount(cls, v: Optional[int], info: ValidationInfo) -> Optional[int]:
         amount = info.data.get("amount")
-        if amount is not None and v >= amount:
+        if v is not None and amount is not None and v >= amount:
             raise PydanticCustomError(
                 "commission_exceeds_amount", "Commission must be less than the trip amount"
             )
@@ -73,6 +74,7 @@ class TripIn(BaseModel):
 
 class Trip(TripIn):
     id: str
+    commission: int  # always known once the trip is stored
 
     @property
     def local_day(self) -> date:
@@ -140,24 +142,59 @@ class Profile(BaseModel):
     default_commission_pct: Optional[float]
 
 
-class ProfileUpdate(BaseModel):
-    """PATCH body: only the fields that were sent are changed."""
+def _clean_name(v):
+    if v is None or not v.strip():
+        raise PydanticCustomError("blank", "Name must not be blank")
+    return v.strip()
+
+
+class SelfProfileUpdate(BaseModel):
+    """PATCH /api/me: a driver may change only their timezone."""
+
+    default_tz: TzOffset
+
+
+class DriverCreate(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+    name: str = Field(min_length=1, max_length=100)
+    car: str = Field(default="", max_length=100)
+    default_tz: TzOffset = "+05:00"
+    default_commission_pct: Optional[CommissionPct] = None
+
+    _name = field_validator("name")(_clean_name)
+
+    @field_validator("car")
+    @classmethod
+    def strip_car(cls, v: str) -> str:
+        return v.strip()
+
+
+class DriverUpdate(BaseModel):
+    """PATCH /api/admin/drivers/{id}: only the fields that were sent are changed."""
 
     name: Optional[str] = Field(default=None, min_length=1, max_length=100)
     car: Optional[str] = Field(default=None, max_length=100)
     default_tz: Optional[TzOffset] = None
     default_commission_pct: Optional[CommissionPct] = None  # null clears it
+    password: Optional[str] = Field(default=None, min_length=8, max_length=128)
 
-    @field_validator("name")
-    @classmethod
-    def name_not_null(cls, v):
-        if v is None or not v.strip():
-            raise PydanticCustomError("blank", "Name must not be blank")
-        return v.strip()
+    _name = field_validator("name")(_clean_name)
 
-    @field_validator("car", "default_tz")
+    @field_validator("car", "default_tz", "password")
     @classmethod
-    def not_null(cls, v):
+    def not_null(cls, v, info: ValidationInfo):
         if v is None:
             raise PydanticCustomError("missing", "Field cannot be null")
-        return v.strip()
+        # Passwords are kept exactly as typed; text fields are trimmed
+        return v if info.field_name == "password" else v.strip()
+
+
+class DriverInfo(Profile):
+    """A driver as the admin sees them: profile plus totals."""
+
+    created_at: datetime
+    trips_count: int
+    revenue: int
+    net: int
+    last_trip_day: Optional[date]

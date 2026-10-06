@@ -132,41 +132,45 @@ def test_logout_requires_json(client):
     assert client.get("/api/me").status_code == 200
 
 
-# --- profile ---
+# --- profile: a driver may change only the timezone ---
 
-def test_update_profile_partially(client):
-    r = client.patch("/api/me", json={"car": "Toyota Camry 123 ABC 02", "default_commission_pct": 15})
+def test_driver_changes_own_timezone(client):
+    r = client.patch("/api/me", json={"default_tz": "+06:00"})
     assert r.status_code == 200
-    body = r.json()
-    assert body["car"] == "Toyota Camry 123 ABC 02"
-    assert body["default_commission_pct"] == 15
-    assert body["name"] == "Айдар"  # untouched
-
-    cleared = client.patch("/api/me", json={"default_commission_pct": None}).json()
-    assert cleared["default_commission_pct"] is None
+    assert r.json()["default_tz"] == "+06:00"
+    assert client.get("/api/me").json()["default_tz"] == "+06:00"
 
 
-@pytest.mark.parametrize("patch, field", [
-    ({"default_tz": "+5"}, "default_tz"),
-    ({"default_tz": "+15:00"}, "default_tz"),
-    ({"default_commission_pct": 120}, "default_commission_pct"),
-    ({"default_commission_pct": 100}, "default_commission_pct"),
-    ({"name": ""}, "name"),
-    ({"name": None}, "name"),
+@pytest.mark.parametrize("field, value", [
+    ("name", "Другое имя"),
+    ("car", "Toyota Camry"),
+    ("default_commission_pct", 5),
+    ("email", "evil@example.com"),
+    ("password", "new-password"),
+    ("role", "admin"),
 ])
-def test_update_profile_validation(client, patch, field):
-    r = client.patch("/api/me", json=patch)
+def test_driver_cannot_change_admin_managed_fields(client, field, value):
+    before = client.get("/api/me").json()
+    r = client.patch("/api/me", json={field: value})
+    assert r.status_code == 403
+    assert r.json()["detail"]["fields"] == [field]
+    assert client.get("/api/me").json() == before
+
+
+def test_mixed_patch_is_rejected_as_a_whole(client):
+    r = client.patch("/api/me", json={"default_tz": "+06:00", "car": "x"})
+    assert r.status_code == 403
+    assert client.get("/api/me").json()["default_tz"] == "+05:00"  # nothing applied
+
+
+@pytest.mark.parametrize("value", ["+5", "+15:00", None, 5])
+def test_timezone_validation(client, value):
+    r = client.patch("/api/me", json={"default_tz": value})
     assert r.status_code == 422
-    assert r.json()["detail"][0]["loc"][-1] == field
-
-
-def test_profile_cannot_change_email_or_password(client):
-    r = client.patch("/api/me", json={"email": "evil@example.com", "password_hash": "x"})
-    assert r.status_code == 200
-    assert r.json()["email"] == "driver@example.com"
+    assert r.json()["detail"][0]["loc"] == ["body", "default_tz"]
 
 
 def test_profile_requires_auth(app):
     anon = TestClient(app)
     assert anon.get("/api/me").status_code == 401
-    assert anon.patch("/api/me", json={"car": "x"}).status_code == 401
+    assert anon.patch("/api/me", json={"default_tz": "+06:00"}).status_code == 401
