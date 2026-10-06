@@ -5,6 +5,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-shifts}:${POSTGRES_PASSWORD:-shifts}@db:5432/${POSTGRES_DB:-shifts}
       SEED_DEMO: ${SEED_DEMO:-1}
       COOKIE_SECURE: ${COOKIE_SECURE:-0}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     ports:
       - "127.0.0.1:8080:8000"
     depends_on:
