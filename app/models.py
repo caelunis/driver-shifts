@@ -44,7 +44,7 @@ class TripIn(BaseModel):
     @classmethod
     def commission_within_amount(cls, v: int, info: ValidationInfo) -> int:
         amount = info.data.get("amount")
-        if amount is not None and v > amount:
+        if amount is not None and v >= amount:
             raise PydanticCustomError(
                 "commission_exceeds_amount", "Commission cannot exceed the trip amount"
             )
@@ -121,32 +121,18 @@ TzOffset = Annotated[str, Field(pattern=r"^[+-](0\d|1[0-4]):[0-5]\d$")]
 CommissionPct = Annotated[float, Field(ge=0, le=100)]
 
 
-class RegisterIn(BaseModel):
-    email: EmailStr
-    password: str = Field(min_length=8, max_length=128)
-    name: str = Field(min_length=1, max_length=100)
-
-    @field_validator("name")
-    @classmethod
-    def strip_name(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise PydanticCustomError("blank", "Name must not be blank")
-        return v
-
-
 class LoginIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=128)
 
 
-class DeleteAccountIn(BaseModel):
-    password: str = Field(min_length=1, max_length=128)
+Role = Literal["driver", "admin"]
 
 
 class Profile(BaseModel):
     id: int
     email: str
+    role: Role
     name: str
     car: str
     default_tz: str

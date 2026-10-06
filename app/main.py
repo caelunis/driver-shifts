@@ -9,12 +9,9 @@ from psycopg_pool import ConnectionPool
 
 from . import accounts
 from .db import DEFAULT_DATABASE_URL, init_schema, open_pool
-from .models import (
-    DayInfo, DaySummary, DeleteAccountIn, LoginIn, Profile, ProfileUpdate, RegisterIn, Trip,
-    TripIn,
-)
+from .models import DayInfo, DaySummary, LoginIn, Profile, ProfileUpdate, Trip, TripIn
 from .security import LoginLimiter
-from .seed import seed_demo
+from .seed import ensure_admin, seed_demo
 from .storage import TripConflict, TripStorage
 from .summary import summarize
 
@@ -68,6 +65,8 @@ def create_app(pool: ConnectionPool | None = None) -> FastAPI:
         init_schema(own_pool)
         if os.environ.get("SEED_DEMO") == "1":
             seed_demo(own_pool, DEMO_TRIPS)
+        if os.environ.get("ADMIN_EMAIL") and os.environ.get("ADMIN_PASSWORD"):
+            ensure_admin(own_pool, os.environ["ADMIN_EMAIL"], os.environ["ADMIN_PASSWORD"])
         app.state.storage = TripStorage(own_pool)
         try:
             yield
@@ -90,15 +89,6 @@ def create_app(pool: ConnectionPool | None = None) -> FastAPI:
         return {"status": "ok"}
 
     # --- accounts ---
-
-    @app.post("/api/auth/register", response_model=Profile, status_code=status.HTTP_201_CREATED)
-    def register(data: RegisterIn, response: Response, storage: TripStorage = Depends(get_storage)):
-        try:
-            driver_id = accounts.create_driver(storage.pool, data.email, data.password, data.name)
-        except accounts.EmailTaken:
-            raise HTTPException(status.HTTP_409_CONFLICT, "Email is already registered")
-        set_session_cookie(response, accounts.create_session(storage.pool, driver_id))
-        return accounts.get_profile(storage.pool, driver_id)
 
     @app.post("/api/auth/login", response_model=Profile)
     def login(data: LoginIn, request: Request, response: Response,
@@ -133,24 +123,6 @@ def create_app(pool: ConnectionPool | None = None) -> FastAPI:
     def update_me(changes: ProfileUpdate, storage: TripStorage = Depends(get_storage),
                   driver_id: int = Depends(session_driver_id)):
         return accounts.update_profile(storage.pool, driver_id, changes.model_dump(exclude_unset=True))
-
-    @app.delete("/api/me", status_code=status.HTTP_204_NO_CONTENT)
-    def delete_me(data: DeleteAccountIn, request: Request, response: Response,
-                  storage: TripStorage = Depends(get_storage),
-                  driver_id: int = Depends(session_driver_id)):
-        # Re-check the password: a stolen cookie alone must not be enough to wipe the account.
-        # Same failure limit as login, so the password cannot be brute-forced from here either.
-        limiter: LoginLimiter = request.app.state.login_limiter
-        key = f"delete:{driver_id}"
-        if wait := limiter.retry_after(key):
-            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many failed attempts",
-                                headers={"Retry-After": str(wait)})
-        if not accounts.check_password(storage.pool, driver_id, data.password):
-            limiter.failure(key)
-            raise HTTPException(status.HTTP_403_FORBIDDEN, "Wrong password")
-        limiter.success(key)
-        accounts.delete_driver(storage.pool, driver_id)  # trips and sessions go via ON DELETE CASCADE
-        response.delete_cookie(SESSION_COOKIE, path="/")
 
     # --- trips ---
 

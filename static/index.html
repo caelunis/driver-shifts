@@ -167,17 +167,7 @@
   .field .hint { color: var(--muted); font-size: 12px; }
   .field .hint:empty { display: none; }
 
-  /* Auth tabs */
-  .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 16px;
-          background: var(--bg); border-radius: 10px; padding: 4px; }
-  .tabs button { border: 0; background: none; padding: 8px; border-radius: 8px; }
-  .tabs button.active { background: var(--card); box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600; }
   .demo-hint { color: var(--muted); font-size: 13px; text-align: center; margin: 0; }
-
-  /* Profile danger zone */
-  .danger-zone { border-color: var(--err); }
-  .danger-zone h2 { color: var(--err); }
-  .danger-zone p { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
 
   /* Confirmation dialog */
   dialog {
@@ -222,14 +212,10 @@
   </div>
 </header>
 
-<!-- ===== Login / registration ===== -->
+<!-- ===== Login ===== -->
 <div class="narrow" id="authView" hidden>
   <section class="panel">
-    <div class="tabs" role="tablist">
-      <button type="button" id="tabLogin" class="active" role="tab">Вход</button>
-      <button type="button" id="tabRegister" role="tab">Регистрация</button>
-    </div>
-
+    <h2>Вход</h2>
     <form id="loginForm" novalidate>
       <label class="field" data-field="email">
         <span>E-mail</span>
@@ -242,28 +228,10 @@
         <small class="error"></small>
       </label>
       <button type="submit" class="primary">Войти</button>
-      <p class="demo-hint">Демо: demo@example.com / demo12345</p>
+      <p class="demo-hint">Демо: demo@example.com / demo12345 · администратор: admin@example.com / admin12345</p>
+      <p class="demo-hint">Аккаунты водителей создаёт администратор.</p>
     </form>
 
-    <form id="registerForm" novalidate hidden>
-      <label class="field" data-field="name">
-        <span>Имя</span>
-        <input type="text" name="name" autocomplete="name" maxlength="100">
-        <small class="error"></small>
-      </label>
-      <label class="field" data-field="email">
-        <span>E-mail</span>
-        <input type="email" name="email" autocomplete="username">
-        <small class="error"></small>
-      </label>
-      <label class="field" data-field="password">
-        <span>Пароль</span>
-        <input type="password" name="password" autocomplete="new-password">
-        <small class="hint">Не меньше 8 символов</small>
-        <small class="error"></small>
-      </label>
-      <button type="submit" class="primary">Зарегистрироваться</button>
-    </form>
   </section>
 </div>
 
@@ -398,28 +366,7 @@
     </form>
   </section>
 
-  <section class="panel danger-zone">
-    <h2>Удаление аккаунта</h2>
-    <p>Аккаунт и все поездки будут удалены безвозвратно. Выполнится выход на всех устройствах.</p>
-    <button type="button" class="danger" id="deleteOpen">Удалить аккаунт</button>
-  </section>
 </div>
-
-<dialog id="deleteDialog">
-  <form id="deleteForm" method="dialog" novalidate>
-    <h2>Удалить аккаунт?</h2>
-    <p>Все поездки будут удалены без возможности восстановления. Для подтверждения введите пароль.</p>
-    <label class="field" data-field="password">
-      <span>Пароль</span>
-      <input type="password" name="password" autocomplete="current-password">
-      <small class="error"></small>
-    </label>
-    <div class="dialog-actions">
-      <button type="button" id="deleteCancel">Отмена</button>
-      <button type="submit" class="danger solid">Удалить навсегда</button>
-    </div>
-  </form>
-</dialog>
 
 <div id="toasts" aria-live="polite"></div>
 
@@ -598,23 +545,12 @@ function route() {
 }
 window.addEventListener("hashchange", route);
 
-/* ---------- login / registration ---------- */
-
-function showTab(tab) {
-  const login = tab === "login";
-  $("tabLogin").classList.toggle("active", login);
-  $("tabRegister").classList.toggle("active", !login);
-  $("loginForm").hidden = !login;
-  $("registerForm").hidden = login;
-  (login ? $("loginForm") : $("registerForm")).querySelector("input").focus();
-}
-$("tabLogin").onclick = () => showTab("login");
-$("tabRegister").onclick = () => showTab("register");
+/* ---------- login ---------- */
 
 function signedIn(profile) {
   me = profile;
   days = []; current = null;
-  $("loginForm").reset(); $("registerForm").reset();
+  $("loginForm").reset();
   if (location.hash === "#profile") location.hash = "";
   route();
 }
@@ -628,20 +564,6 @@ $("loginForm").onsubmit = e => {
     if (isValidation(res)) return showValidation(form, res);
     if (res.status === 401) return toast("err", "Неверный e-mail или пароль");
     if (res.status === 429) return toast("err", retryText(res));
-    toast("err", `Ошибка сервера (${res.status})`);
-  });
-};
-
-$("registerForm").onsubmit = e => {
-  e.preventDefault();
-  const form = e.target, f = new FormData(form);
-  submitting(form, async () => {
-    const res = await api("/api/auth/register", {
-      method: "POST", json: { name: f.get("name"), email: f.get("email"), password: f.get("password") },
-    });
-    if (res.ok) { toast("ok", "Аккаунт создан"); return signedIn(res.body); }
-    if (isValidation(res)) return showValidation(form, res);
-    if (res.status === 409) return setFieldError(form, "email", "Этот e-mail уже зарегистрирован");
     toast("err", `Ошибка сервера (${res.status})`);
   });
 };
@@ -681,33 +603,6 @@ $("profileForm").onsubmit = e => {
     });
     if (res.ok) { me = res.body; setHeader(); fillProfile(); return toast("ok", "Профиль сохранён"); }
     if (isValidation(res)) return showValidation(form, res);
-    if (res.status !== 401) toast("err", `Ошибка сервера (${res.status})`);
-  });
-};
-
-$("deleteOpen").onclick = () => {
-  const form = $("deleteForm");
-  form.reset(); clearErrors(form);
-  $("deleteDialog").showModal();
-  form.password.focus();
-};
-$("deleteCancel").onclick = () => $("deleteDialog").close();
-
-$("deleteForm").onsubmit = e => {
-  e.preventDefault();
-  const form = e.target;
-  submitting(form, async () => {
-    const res = await api("/api/me", { method: "DELETE", json: { password: form.password.value } });
-    if (res.status === 204) {
-      $("deleteDialog").close();
-      me = null;
-      location.hash = "";
-      route();
-      return toast("ok", "Аккаунт и все поездки удалены");
-    }
-    if (isValidation(res)) return showValidation(form, res);
-    if (res.status === 403) return setFieldError(form, "password", "Неверный пароль");
-    if (res.status === 429) return setFieldError(form, "password", retryText(res));
     if (res.status !== 401) toast("err", `Ошибка сервера (${res.status})`);
   });
 };

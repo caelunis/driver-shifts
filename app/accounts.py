@@ -25,12 +25,14 @@ def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def create_driver(pool: ConnectionPool, email: str, password: str, name: str = "") -> int:
+def create_driver(pool: ConnectionPool, email: str, password: str, name: str = "",
+                  role: str = "driver") -> int:
     try:
         with pool.connection() as conn:
             row = conn.execute(
-                "INSERT INTO drivers (email, password_hash, name) VALUES (%s, %s, %s) RETURNING id",
-                (email.lower(), hash_password(password), name),
+                "INSERT INTO drivers (email, password_hash, name, role) VALUES (%s, %s, %s, %s)"
+                " RETURNING id",
+                (email.lower(), hash_password(password), name, role),
             ).fetchone()
     except UniqueViolation:
         raise EmailTaken(email)
@@ -46,12 +48,6 @@ def authenticate(pool: ConnectionPool, email: str, password: str) -> int | None:
         verify_password(password, _DUMMY_HASH)
         return None
     return row["id"] if verify_password(password, row["password_hash"]) else None
-
-
-def check_password(pool: ConnectionPool, driver_id: int, password: str) -> bool:
-    with pool.connection() as conn:
-        row = conn.execute("SELECT password_hash FROM drivers WHERE id = %s", (driver_id,)).fetchone()
-    return bool(row) and verify_password(password, row["password_hash"])
 
 
 def delete_driver(pool: ConnectionPool, driver_id: int) -> None:
@@ -86,7 +82,7 @@ def delete_session(pool: ConnectionPool, token: str) -> None:
         conn.execute("DELETE FROM sessions WHERE token_hash = %s", (_token_hash(token),))
 
 
-_PROFILE_COLUMNS = "id, email, name, car, default_tz, default_commission_pct"
+_PROFILE_COLUMNS = "id, email, role, name, car, default_tz, default_commission_pct"
 
 
 def get_profile(pool: ConnectionPool, driver_id: int) -> Profile:

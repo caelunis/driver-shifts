@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS drivers (
     created_at             timestamptz NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS drivers_email_key ON drivers (lower(email));
+-- Added after the first release: ALTER keeps existing databases working
+ALTER TABLE drivers ADD COLUMN IF NOT EXISTS role text NOT NULL DEFAULT 'driver'
+    CHECK (role IN ('driver', 'admin'));
 
 CREATE TABLE IF NOT EXISTS sessions (
     token_hash text PRIMARY KEY,
