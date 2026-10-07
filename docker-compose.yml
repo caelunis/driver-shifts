@@ -52,11 +52,22 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-shifts}:${POSTGRES_PASSWORD:-shifts}@db:5432/${POSTGRES_DB:-shifts}
       COOKIE_SECURE: ${COOKIE_SECURE:-0}
-    ports:
-      - "127.0.0.1:8080:8000"
+    # Not published: reached through `web`, which serves the frontend on the same origin
+    expose:
+      - "8000"
     depends_on:
       bootstrap:
         condition: service_completed_successfully
+    restart: unless-stopped
+
+  # The React app (frontend/), served by nginx, which also proxies /api to `app`
+  web:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      app:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

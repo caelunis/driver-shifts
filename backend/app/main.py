@@ -1,8 +1,6 @@
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 from psycopg_pool import ConnectionPool
 
 from app.api import errors
@@ -11,10 +9,6 @@ from app.api.routes.admin import drivers as admin_drivers
 from app.core.config import get_settings
 from app.core.db import open_pool
 from app.core.security import LoginLimiter
-
-# Temporary: the current single-page client, until the separate frontend app replaces it
-STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
-
 
 def create_app(pool: ConnectionPool | None = None) -> FastAPI:
     """Pass a pool in tests; otherwise the app connects to DATABASE_URL on startup.
@@ -33,7 +27,9 @@ def create_app(pool: ConnectionPool | None = None) -> FastAPI:
         finally:
             app.state.pool.close()
 
-    app = FastAPI(title="Driver shift diary", lifespan=lifespan)
+    # Everything under /api: the frontend's nginx proxies only that prefix
+    app = FastAPI(title="Driver shift diary", lifespan=lifespan, docs_url="/api/docs",
+                  redoc_url=None, openapi_url="/api/openapi.json")
     if pool is not None:
         app.state.pool = pool
     app.state.login_limiter = LoginLimiter()
@@ -43,9 +39,6 @@ def create_app(pool: ConnectionPool | None = None) -> FastAPI:
     for router in (health.router, auth.router, me.router, shifts.router, trips.router,
                    admin_drivers.router):
         app.include_router(router)
-
-    if STATIC_DIR.exists():
-        app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
 
     return app
 

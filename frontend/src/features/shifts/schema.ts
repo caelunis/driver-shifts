@@ -1,0 +1,33 @@
+import { z } from "zod";
+
+export type ShiftDialogMode = "past" | "edit" | "close";
+
+const MAX_SHIFT_MIN = 24 * 60;
+
+/** Values of the shift dialog: datetime-local strings and the note. */
+export function shiftFormSchema(mode: ShiftDialogMode) {
+  return z
+    .object({
+      start: z.string(),
+      end: z.string(),
+      note: z.string().max(500, "Не больше 500 символов"),
+    })
+    .superRefine((v, ctx) => {
+      if (mode !== "close" && !v.start) {
+        ctx.addIssue({ code: "custom", path: ["start"], message: "Укажите начало" });
+      }
+      if (mode === "past" && !v.end) {
+        ctx.addIssue({ code: "custom", path: ["end"], message: "Укажите окончание" });
+      }
+      if (v.start && v.end) {
+        const minutes = (Date.parse(v.end) - Date.parse(v.start)) / 60000;
+        if (minutes <= 0) {
+          ctx.addIssue({ code: "custom", path: ["end"], message: "Окончание должно быть позже начала" });
+        } else if (minutes > MAX_SHIFT_MIN) {
+          ctx.addIssue({ code: "custom", path: ["end"], message: "Смена длится не больше 24 часов" });
+        }
+      }
+    });
+}
+
+export type ShiftFormValues = z.infer<ReturnType<typeof shiftFormSchema>>;
