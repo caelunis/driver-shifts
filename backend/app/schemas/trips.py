@@ -2,7 +2,7 @@ import hashlib
 from datetime import date, datetime, timezone
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 from pydantic_core import PydanticCustomError
 
 from .common import AwareDatetime
@@ -67,9 +67,34 @@ class TripIn(BaseModel):
         return Trip(**data)
 
 
+class TripPatch(BaseModel):
+    """Changes to a stored trip; omitted fields keep their values. The id never changes."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    shift_id: Optional[int] = Field(default=None, gt=0)
+    start: Optional[AwareDatetime] = None
+    end: Optional[AwareDatetime] = None
+    amount: Optional[int] = Field(default=None, gt=0)
+    payment: Optional[Payment] = None
+    commission: Optional[int] = Field(default=None, ge=0)
+
+    # Validators run only on fields the client sent, so this rejects an explicit null
+    # without making the field required. Cross-field rules are checked by the service
+    # on the merged trip, since one side of the pair may come from the stored row.
+    @field_validator("shift_id", "start", "end", "amount", "payment", "commission")
+    @classmethod
+    def not_null(cls, v):
+        if v is None:
+            raise PydanticCustomError("null_not_allowed", "Field cannot be null")
+        return v
+
+
 class Trip(TripIn):
     id: str
     commission: int  # always known once the trip is stored
+    # The percent the commission was computed with; None if it was entered by hand
+    commission_pct: Optional[float] = None
 
     def same_content(self, other: "Trip") -> bool:
         # Aware datetimes compare by instant, not by how the offset is written

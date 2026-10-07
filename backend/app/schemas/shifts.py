@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 from pydantic_core import PydanticCustomError
 
 from .common import AwareDatetime
@@ -30,6 +30,24 @@ class ShiftStartIn(BaseModel):
 
 class ShiftCloseIn(BaseModel):
     end: Optional[AwareDatetime] = None  # None = now
+
+
+class ShiftPatch(BaseModel):
+    """Changes to a shift; omitted fields keep their values. `end: null` reopens it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    start: Optional[AwareDatetime] = None
+    end: Optional[AwareDatetime] = None
+    note: Optional[str] = Field(default=None, max_length=500)
+
+    @field_validator("start", "note")
+    @classmethod
+    def not_null(cls, v):
+        # Runs only for fields the client sent: rejects an explicit null
+        if v is None:
+            raise PydanticCustomError("null_not_allowed", "Field cannot be null")
+        return v
 
 
 class ShiftSummary(Totals):

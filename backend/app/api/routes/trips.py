@@ -5,7 +5,7 @@ from psycopg_pool import ConnectionPool
 
 from app.api.deps import get_pool, require_driver
 from app.core.errors import TripConflict
-from app.schemas.trips import DayInfo, DaySummary, Trip, TripIn
+from app.schemas.trips import DayInfo, DaySummary, Trip, TripIn, TripPatch
 from app.services import trips
 
 router = APIRouter(prefix="/api")
@@ -44,3 +44,16 @@ def add_trip(trip_in: TripIn, response: Response, pool: ConnectionPool = Depends
     if not created:
         response.status_code = status.HTTP_200_OK
     return trip
+
+
+@router.patch("/trips/{trip_id}", response_model=Trip)
+def update_trip(trip_id: str, changes: TripPatch, pool: ConnectionPool = Depends(get_pool),
+                driver_id: int = Depends(require_driver)):
+    return trips.update(pool, driver_id, trip_id, changes.model_dump(exclude_unset=True))
+
+
+@router.delete("/trips/{trip_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_trip(trip_id: str, pool: ConnectionPool = Depends(get_pool),
+                driver_id: int = Depends(require_driver)):
+    trips.delete(pool, driver_id, trip_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -26,11 +26,13 @@ def _row_to_trip(row: dict) -> Trip:
         amount=row["amount"],
         payment=row["payment"],
         commission=row["commission"],
+        commission_pct=(float(row["commission_pct"])
+                        if row["commission_pct"] is not None else None),
     )
 
 
 _COLUMNS = ("t.id, t.shift_id, t.start_at, t.end_at, t.start_offset_min, t.end_offset_min,"
-            " t.amount, t.payment, t.commission")
+            " t.amount, t.payment, t.commission, t.commission_pct")
 
 
 def for_day(conn: Connection, driver_id: int, day: date) -> list[Trip]:
@@ -64,9 +66,12 @@ def days(conn: Connection, driver_id: int) -> list[DayInfo]:
     return [DayInfo(**r) for r in rows]
 
 
-def get(conn: Connection, driver_id: int, trip_id: str) -> Trip | None:
+def get(conn: Connection, driver_id: int, trip_id: str, *,
+        for_update: bool = False) -> Trip | None:
+    lock = " FOR UPDATE" if for_update else ""
     row = conn.execute(
-        f"SELECT {_COLUMNS} FROM trips t WHERE t.driver_id = %s AND t.id = %s", (driver_id, trip_id)
+        f"SELECT {_COLUMNS} FROM trips t WHERE t.driver_id = %s AND t.id = %s{lock}",
+        (driver_id, trip_id),
     ).fetchone()
     return _row_to_trip(row) if row else None
 
@@ -78,13 +83,31 @@ def insert_if_absent(conn: Connection, driver_id: int, trip: Trip) -> bool:
     """
     row = conn.execute(
         "INSERT INTO trips (driver_id, id, shift_id, start_at, end_at, start_offset_min,"
-        " end_offset_min, amount, payment, commission)"
-        " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+        " end_offset_min, amount, payment, commission, commission_pct)"
+        " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
         " ON CONFLICT (driver_id, id) DO NOTHING RETURNING id",
         (
             driver_id, trip.id, trip.shift_id, trip.start, trip.end,
             offset_min(trip.start), offset_min(trip.end),
-            trip.amount, trip.payment, trip.commission,
+            trip.amount, trip.payment, trip.commission, trip.commission_pct,
         ),
     ).fetchone()
     return row is not None
+
+
+def update(conn: Connection, driver_id: int, trip: Trip) -> None:
+    """Overwrite every editable column of the trip `trip.id`."""
+    conn.execute(
+        "UPDATE trips SET shift_id = %s, start_at = %s, end_at = %s, start_offset_min = %s,"
+        " end_offset_min = %s, amount = %s, payment = %s, commission = %s, commission_pct = %s"
+        " WHERE driver_id = %s AND id = %s",
+        (
+            trip.shift_id, trip.start, trip.end, offset_min(trip.start), offset_min(trip.end),
+            trip.amount, trip.payment, trip.commission, trip.commission_pct,
+            driver_id, trip.id,
+        ),
+    )
+
+
+def delete(conn: Connection, driver_id: int, trip_id: str) -> None:
+    conn.execute("DELETE FROM trips WHERE driver_id = %s AND id = %s", (driver_id, trip_id))

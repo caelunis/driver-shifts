@@ -6,8 +6,8 @@ from psycopg_pool import ConnectionPool
 from app.api.deps import get_pool, require_admin
 from app.core.errors import EmailTaken
 from app.schemas.accounts import DriverCreate, DriverInfo, DriverUpdate
-from app.schemas.shifts import Shift, ShiftDetail
-from app.schemas.trips import DayInfo, DaySummary, Trip
+from app.schemas.shifts import Shift, ShiftDetail, ShiftPatch
+from app.schemas.trips import DayInfo, DaySummary, Trip, TripPatch
 from app.services import accounts, shifts, trips
 
 router = APIRouter(prefix="/api/admin/drivers", dependencies=[Depends(require_admin)])
@@ -54,7 +54,7 @@ def delete_driver(driver: DriverInfo = Depends(existing_driver),
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-# --- read-only view of a driver's diary ---
+# --- a driver's diary: read, correct and delete entries, without the 7-day limit ---
 
 @router.get("/{driver_id}/days", response_model=list[DayInfo])
 def driver_days(driver: DriverInfo = Depends(existing_driver),
@@ -84,3 +84,33 @@ def driver_shifts(date: date, driver: DriverInfo = Depends(existing_driver),
 def driver_shift(shift_id: int, driver: DriverInfo = Depends(existing_driver),
                  pool: ConnectionPool = Depends(get_pool)):
     return shifts.get(pool, driver.id, shift_id)
+
+
+@router.patch("/{driver_id}/trips/{trip_id}", response_model=Trip)
+def update_driver_trip(trip_id: str, changes: TripPatch,
+                       driver: DriverInfo = Depends(existing_driver),
+                       pool: ConnectionPool = Depends(get_pool)):
+    return trips.update(pool, driver.id, trip_id, changes.model_dump(exclude_unset=True),
+                        by_admin=True)
+
+
+@router.delete("/{driver_id}/trips/{trip_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_driver_trip(trip_id: str, driver: DriverInfo = Depends(existing_driver),
+                       pool: ConnectionPool = Depends(get_pool)):
+    trips.delete(pool, driver.id, trip_id, by_admin=True)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch("/{driver_id}/shifts/{shift_id}", response_model=Shift)
+def update_driver_shift(shift_id: int, changes: ShiftPatch,
+                        driver: DriverInfo = Depends(existing_driver),
+                        pool: ConnectionPool = Depends(get_pool)):
+    return shifts.update(pool, driver.id, shift_id, changes.model_dump(exclude_unset=True),
+                         by_admin=True)
+
+
+@router.delete("/{driver_id}/shifts/{shift_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_driver_shift(shift_id: int, driver: DriverInfo = Depends(existing_driver),
+                        pool: ConnectionPool = Depends(get_pool)):
+    shifts.delete(pool, driver.id, shift_id, by_admin=True)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

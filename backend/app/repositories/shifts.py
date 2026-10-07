@@ -67,7 +67,26 @@ def close(conn: Connection, shift_id: int, end: datetime) -> dict:
     return _row(row)
 
 
-def last_trip_end(conn: Connection, shift_id: int) -> datetime | None:
-    row = conn.execute("SELECT max(end_at) AS last FROM trips WHERE shift_id = %s",
-                       (shift_id,)).fetchone()
-    return row["last"]
+def update(conn: Connection, shift_id: int, start: datetime, end: datetime | None,
+           note: str) -> dict:
+    row = conn.execute(
+        f"UPDATE shifts SET started_at = %s, ended_at = %s, start_offset_min = %s,"
+        f" end_offset_min = %s, local_day = %s, note = %s WHERE id = %s RETURNING {_COLUMNS}",
+        (start, end, offset_min(start), offset_min(end) if end else None, start.date(), note,
+         shift_id),
+    ).fetchone()
+    return _row(row)
+
+
+def delete(conn: Connection, shift_id: int) -> None:
+    """The shift's trips go with it (ON DELETE CASCADE)."""
+    conn.execute("DELETE FROM shifts WHERE id = %s", (shift_id,))
+
+
+def trips_span(conn: Connection, shift_id: int) -> tuple[datetime | None, datetime | None]:
+    """Start of the first trip and end of the last one; (None, None) for an empty shift."""
+    row = conn.execute(
+        "SELECT min(start_at) AS first, max(end_at) AS last FROM trips WHERE shift_id = %s",
+        (shift_id,),
+    ).fetchone()
+    return row["first"], row["last"]
