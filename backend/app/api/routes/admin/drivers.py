@@ -6,8 +6,9 @@ from psycopg_pool import ConnectionPool
 from app.api.deps import get_pool, require_admin
 from app.core.errors import EmailTaken
 from app.schemas.accounts import DriverCreate, DriverInfo, DriverUpdate
+from app.schemas.shifts import Shift, ShiftDetail
 from app.schemas.trips import DayInfo, DaySummary, Trip
-from app.services import accounts, trips
+from app.services import accounts, shifts, trips
 
 router = APIRouter(prefix="/api/admin/drivers", dependencies=[Depends(require_admin)])
 
@@ -71,3 +72,15 @@ def driver_trips(date: date, driver: DriverInfo = Depends(existing_driver),
 def driver_summary(date: date, driver: DriverInfo = Depends(existing_driver),
                    pool: ConnectionPool = Depends(get_pool)):
     return trips.day_summary(pool, driver.id, date)
+
+
+@router.get("/{driver_id}/shifts", response_model=list[Shift])
+def driver_shifts(date: date, driver: DriverInfo = Depends(existing_driver),
+                  pool: ConnectionPool = Depends(get_pool)):
+    return shifts.for_day(pool, driver.id, date)
+
+
+@router.get("/{driver_id}/shifts/{shift_id}", response_model=ShiftDetail)
+def driver_shift(shift_id: int, driver: DriverInfo = Depends(existing_driver),
+                 pool: ConnectionPool = Depends(get_pool)):
+    return shifts.get(pool, driver.id, shift_id)

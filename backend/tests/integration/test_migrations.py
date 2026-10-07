@@ -32,7 +32,7 @@ def applied(url: str) -> int:
 def test_up_down_up(scratch_db):
     up = dbmate(scratch_db, "up")
     assert up.returncode == 0, up.stderr
-    expected = {"users", "drivers", "sessions", "trips"}
+    expected = {"users", "drivers", "sessions", "shifts", "trips"}
     assert tables(scratch_db) == expected
     count = applied(scratch_db)
 

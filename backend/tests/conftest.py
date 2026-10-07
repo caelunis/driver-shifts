@@ -1,11 +1,13 @@
 import os
 import shutil
 import subprocess
+from datetime import datetime
 from pathlib import Path
 
 import psycopg
 import pytest
 
+from app.core import clock
 from app.core.db import open_pool
 
 BACKEND = Path(__file__).resolve().parent.parent
@@ -46,7 +48,7 @@ def pool():
 def db(pool):
     """Empty tables for every test."""
     with pool.connection() as conn:
-        conn.execute("TRUNCATE trips, sessions, drivers, users RESTART IDENTITY CASCADE")
+        conn.execute("TRUNCATE trips, shifts, sessions, drivers, users RESTART IDENTITY CASCADE")
     return pool
 
 
@@ -54,3 +56,15 @@ def db(pool):
 def driver_id(db):
     from tests.factories import create_driver
     return create_driver(db, "driver@example.com", "password123", name="Test driver")
+
+
+# Tests use dates around the start of October 2026; "now" is pinned right after them,
+# so rules like "not in the future" and "at most 7 days back" give the same answer
+# whenever the tests run.
+NOW = datetime.fromisoformat("2026-10-03T12:00:00+05:00")
+
+
+@pytest.fixture(autouse=True)
+def frozen_clock(monkeypatch):
+    monkeypatch.setattr(clock, "now", lambda: NOW)
+    return NOW

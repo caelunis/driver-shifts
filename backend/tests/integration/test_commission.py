@@ -1,10 +1,11 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from tests.factories import create_driver, set_commission_pct
+from tests.factories import create_driver, day_shift, set_commission_pct
 from app.main import create_app
 
-TRIP = {"start": "2026-10-01T08:10:00+05:00", "end": "2026-10-01T08:32:00+05:00",
+# shift_id 1: the day shift created by the `driver` fixture
+TRIP = {"shift_id": 1, "start": "2026-10-01T08:10:00+05:00", "end": "2026-10-01T08:32:00+05:00",
         "amount": 2350, "payment": "card"}
 
 
@@ -15,6 +16,7 @@ def driver_id(db):
 
 @pytest.fixture
 def driver(db, driver_id):
+    assert day_shift(db, driver_id) == 1
     c = TestClient(create_app(db))
     c.post("/api/auth/login", json={"email": "driver@example.com", "password": "driver-pass"})
     return c

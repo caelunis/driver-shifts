@@ -4,16 +4,19 @@ from fastapi.testclient import TestClient
 from app.main import create_app
 from app.schemas.trips import TripIn
 from app.services import trips as trips_service
+from tests.factories import day_shift
 
-T1 = {"id": "t1", "start": "2026-10-01T08:10:00+05:00", "end": "2026-10-01T08:32:00+05:00",
+# shift_id 1: the day shift created by the `client` fixture
+T1 = {"id": "t1", "shift_id": 1, "start": "2026-10-01T08:10:00+05:00", "end": "2026-10-01T08:32:00+05:00",
       "amount": 2400, "payment": "card", "commission": 360}
-T2 = {"id": "t2", "start": "2026-10-01T09:05:00+05:00", "end": "2026-10-01T09:20:00+05:00",
+T2 = {"id": "t2", "shift_id": 1, "start": "2026-10-01T09:05:00+05:00", "end": "2026-10-01T09:20:00+05:00",
       "amount": 1500, "payment": "cash", "commission": 225}
 
 
 @pytest.fixture
 def client(db, driver_id):
     """Logged-in client of the conftest driver, who already has trips T1 and T2."""
+    assert day_shift(db, driver_id) == 1
     for t in (T1, T2):
         trips_service.add(db, driver_id, TripIn(**t))
     c = TestClient(create_app(db))
@@ -56,7 +59,7 @@ def test_bad_date_param(client):
 
 # --- adding and duplicate protection ---
 
-NEW = {"id": "t3", "start": "2026-10-01T10:00:00+05:00", "end": "2026-10-01T10:20:00+05:00",
+NEW = {"id": "t3", "shift_id": 1, "start": "2026-10-01T10:00:00+05:00", "end": "2026-10-01T10:20:00+05:00",
        "amount": 2000, "payment": "cash", "commission": 300}
 
 
@@ -144,8 +147,9 @@ def test_legacy_trip_with_commission_equal_to_amount_is_still_readable(client, d
     with db.connection() as conn:
         conn.execute("ALTER TABLE trips DROP CONSTRAINT trips_commission_check")
         conn.execute(
-            "INSERT INTO trips SELECT driver_id, 'legacy', start_at, end_at, start_offset_min,"
-            " end_offset_min, local_day, 1000, payment, 1000 FROM trips WHERE id = 't1'"
+            "INSERT INTO trips (driver_id, id, start_at, end_at, start_offset_min, end_offset_min,"
+            " amount, payment, commission, shift_id) SELECT driver_id, 'legacy', start_at, end_at,"
+            " start_offset_min, end_offset_min, 1000, payment, 1000, shift_id FROM trips WHERE id = 't1'"
         )
         conn.execute("ALTER TABLE trips ADD CONSTRAINT trips_commission_check"
                      " CHECK (commission >= 0 AND commission < amount) NOT VALID")

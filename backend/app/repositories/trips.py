@@ -6,44 +6,59 @@ from psycopg import Connection
 from app.schemas.trips import DayInfo, Trip
 
 
-def _offset_min(dt: datetime) -> int:
+def offset_min(dt: datetime) -> int:
     return int(dt.utcoffset().total_seconds() // 60)
 
 
-def _restore(instant: datetime, offset_min: int) -> datetime:
-    """Return the instant in the offset the client originally sent."""
-    return instant.astimezone(timezone(timedelta(minutes=offset_min)))
+def restore_offset(instant: datetime, offset_minutes: int) -> datetime:
+    """timestamptz comes back in UTC; return it in the offset the client originally sent."""
+    return instant.astimezone(timezone(timedelta(minutes=offset_minutes)))
 
 
 def _row_to_trip(row: dict) -> Trip:
     # model_construct skips validation: rows were validated on insert, and re-checking
-    # them against today's rules would make old rows (e.g. commission == amount from
-    # before that was forbidden) unreadable.
+    # them against today's rules could make old rows unreadable.
     return Trip.model_construct(
         id=row["id"],
-        start=_restore(row["start_at"], row["start_offset_min"]),
-        end=_restore(row["end_at"], row["end_offset_min"]),
+        shift_id=row["shift_id"],
+        start=restore_offset(row["start_at"], row["start_offset_min"]),
+        end=restore_offset(row["end_at"], row["end_offset_min"]),
         amount=row["amount"],
         payment=row["payment"],
         commission=row["commission"],
     )
 
 
-_COLUMNS = "id, start_at, end_at, start_offset_min, end_offset_min, amount, payment, commission"
+_COLUMNS = ("t.id, t.shift_id, t.start_at, t.end_at, t.start_offset_min, t.end_offset_min,"
+            " t.amount, t.payment, t.commission")
 
 
 def for_day(conn: Connection, driver_id: int, day: date) -> list[Trip]:
+    """Trips of the shifts that started on this local day (a night shift keeps its trips
+    after midnight)."""
     rows = conn.execute(
-        f"SELECT {_COLUMNS} FROM trips WHERE driver_id = %s AND local_day = %s ORDER BY start_at",
+        f"SELECT {_COLUMNS} FROM trips t JOIN shifts s ON s.id = t.shift_id"
+        " WHERE s.driver_id = %s AND s.local_day = %s ORDER BY t.start_at",
         (driver_id, day),
     ).fetchall()
     return [_row_to_trip(r) for r in rows]
 
 
-def days(conn: Connection, driver_id: int) -> list[DayInfo]:
+def for_shifts(conn: Connection, shift_ids: list[int]) -> list[Trip]:
     rows = conn.execute(
-        "SELECT local_day AS date, count(*) AS count, sum(amount - commission) AS net"
-        " FROM trips WHERE driver_id = %s GROUP BY local_day ORDER BY local_day",
+        f"SELECT {_COLUMNS} FROM trips t WHERE t.shift_id = ANY(%s) ORDER BY t.start_at",
+        (shift_ids,),
+    ).fetchall()
+    return [_row_to_trip(r) for r in rows]
+
+
+def days(conn: Connection, driver_id: int) -> list[DayInfo]:
+    """Days with at least one shift, with the number of trips and the take-home."""
+    rows = conn.execute(
+        "SELECT s.local_day AS date, count(t.id) AS count,"
+        " coalesce(sum(t.amount - t.commission), 0) AS net"
+        " FROM shifts s LEFT JOIN trips t ON t.shift_id = s.id"
+        " WHERE s.driver_id = %s GROUP BY s.local_day ORDER BY s.local_day",
         (driver_id,),
     ).fetchall()
     return [DayInfo(**r) for r in rows]
@@ -51,7 +66,7 @@ def days(conn: Connection, driver_id: int) -> list[DayInfo]:
 
 def get(conn: Connection, driver_id: int, trip_id: str) -> Trip | None:
     row = conn.execute(
-        f"SELECT {_COLUMNS} FROM trips WHERE driver_id = %s AND id = %s", (driver_id, trip_id)
+        f"SELECT {_COLUMNS} FROM trips t WHERE t.driver_id = %s AND t.id = %s", (driver_id, trip_id)
     ).fetchone()
     return _row_to_trip(row) if row else None
 
@@ -62,13 +77,13 @@ def insert_if_absent(conn: Connection, driver_id: int, trip: Trip) -> bool:
     Safe under concurrency: of several simultaneous inserts exactly one wins.
     """
     row = conn.execute(
-        "INSERT INTO trips (driver_id, id, start_at, end_at, start_offset_min,"
-        " end_offset_min, local_day, amount, payment, commission)"
+        "INSERT INTO trips (driver_id, id, shift_id, start_at, end_at, start_offset_min,"
+        " end_offset_min, amount, payment, commission)"
         " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
         " ON CONFLICT (driver_id, id) DO NOTHING RETURNING id",
         (
-            driver_id, trip.id, trip.start, trip.end,
-            _offset_min(trip.start), _offset_min(trip.end), trip.local_day,
+            driver_id, trip.id, trip.shift_id, trip.start, trip.end,
+            offset_min(trip.start), offset_min(trip.end),
             trip.amount, trip.payment, trip.commission,
         ),
     ).fetchone()

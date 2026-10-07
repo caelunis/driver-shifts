@@ -19,3 +19,15 @@ class TripConflict(Exception):
 
     def __init__(self, existing):
         self.existing = existing
+
+
+class NotFound(Exception):
+    pass
+
+
+class Conflict(Exception):
+    """The request clashes with the current state (409), e.g. a shift is already open."""
+
+    def __init__(self, code: str, message: str, **ctx):
+        super().__init__(message)
+        self.code, self.message, self.ctx = code, message, ctx

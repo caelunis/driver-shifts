@@ -52,10 +52,11 @@ _WITH_TOTALS = """
            count(t.id) AS trips_count,
            coalesce(sum(t.amount), 0) AS revenue,
            coalesce(sum(t.amount - t.commission), 0) AS net,
-           max(t.local_day) AS last_trip_day
+           max(s.local_day) AS last_trip_day
     FROM drivers d
     JOIN users u ON u.id = d.user_id
     LEFT JOIN trips t ON t.driver_id = d.user_id
+    LEFT JOIN shifts s ON s.id = t.shift_id
     {filter}
     GROUP BY u.id, d.user_id
     ORDER BY lower(d.name), u.id

@@ -1,10 +1,11 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from tests.factories import create_driver
+from tests.factories import create_driver, day_shift
 from app.main import create_app
 
-TRIP = {"id": "t1", "start": "2026-10-01T08:10:00+05:00", "end": "2026-10-01T08:32:00+05:00",
+# shift_id 1: the day shift created by the `driver` fixture
+TRIP = {"id": "t1", "shift_id": 1, "start": "2026-10-01T08:10:00+05:00", "end": "2026-10-01T08:32:00+05:00",
         "amount": 2400, "payment": "card", "commission": 360}
 DAY = {"date": "2026-10-01"}
 NEW_DRIVER = {"email": "Erlan@Example.com", "password": "temp-pass-1", "name": " Ерлан ",
@@ -38,7 +39,8 @@ def driver_id(db):
 
 
 @pytest.fixture
-def driver(app, driver_id):
+def driver(app, db, driver_id):
+    assert day_shift(db, driver_id) == 1  # the shift TRIP goes into
     return logged_in(app, "driver@example.com", "driver-pass")
 
 
@@ -91,9 +93,11 @@ def test_admin_sees_own_profile_with_role(admin):
 
 # --- listing and search ---
 
-def test_list_shows_drivers_with_totals_but_not_admins(admin, driver):
+def test_list_shows_drivers_with_totals_but_not_admins(db, admin, driver, driver_id):
     driver.post("/api/trips", json=TRIP)
-    driver.post("/api/trips", json={**TRIP, "id": "t2", "start": "2026-10-03T10:00:00+05:00",
+    second = day_shift(db, driver_id, "2026-10-03", end="11:00")  # "now" is 10-03 12:00
+    driver.post("/api/trips", json={**TRIP, "id": "t2", "shift_id": second,
+                                    "start": "2026-10-03T10:00:00+05:00",
                                     "end": "2026-10-03T10:20:00+05:00", "amount": 1000,
                                     "commission": 100})
     [row] = admin.get("/api/admin/drivers").json()

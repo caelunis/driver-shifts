@@ -5,6 +5,8 @@ from typing import Literal, Optional
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 from pydantic_core import PydanticCustomError
 
+from .common import AwareDatetime
+
 Payment = Literal["cash", "card"]
 
 
@@ -12,8 +14,9 @@ class TripIn(BaseModel):
     """Trip as sent by a client. The id is optional."""
 
     id: Optional[str] = Field(default=None, min_length=1, max_length=64)
-    start: datetime
-    end: datetime
+    shift_id: int = Field(gt=0)
+    start: AwareDatetime
+    end: AwareDatetime
     amount: int = Field(gt=0, description="Trip amount, KZT")
     payment: Payment
     # Omitted when the admin set a commission percent for the driver: the server computes it
@@ -23,15 +26,6 @@ class TripIn(BaseModel):
     # a model validator only runs when every field is valid, so the client would
     # see errors one at a time. Here each error is attached to its own field.
     # Custom error types let the client localize messages without parsing text.
-
-    @field_validator("start", "end")
-    @classmethod
-    def require_timezone(cls, v: datetime) -> datetime:
-        if v.tzinfo is None:
-            raise PydanticCustomError(
-                "timezone_required", "Timezone offset is required, e.g. +05:00"
-            )
-        return v
 
     @field_validator("end")
     @classmethod
@@ -58,6 +52,7 @@ class TripIn(BaseModel):
         offset notation yields the same key.
         """
         raw = "|".join([
+            str(self.shift_id),
             self.start.astimezone(timezone.utc).isoformat(),
             self.end.astimezone(timezone.utc).isoformat(),
             str(self.amount),
@@ -76,16 +71,11 @@ class Trip(TripIn):
     id: str
     commission: int  # always known once the trip is stored
 
-    @property
-    def local_day(self) -> date:
-        # The day comes from the trip's own local start time (its offset), not UTC:
-        # a trip at 02:00 +05:00 belongs to that day, not to the previous one.
-        return self.start.date()
-
     def same_content(self, other: "Trip") -> bool:
         # Aware datetimes compare by instant, not by how the offset is written
         return (
-            self.start == other.start
+            self.shift_id == other.shift_id
+            and self.start == other.start
             and self.end == other.end
             and self.amount == other.amount
             and self.payment == other.payment
@@ -98,8 +88,7 @@ class PaymentBreakdown(BaseModel):
     amount: int = 0
 
 
-class DaySummary(BaseModel):
-    date: date
+class Totals(BaseModel):
     count: int
     revenue: int
     commission: int
@@ -108,8 +97,15 @@ class DaySummary(BaseModel):
     card: PaymentBreakdown
 
 
+class DaySummary(Totals):
+    """Totals of all trips in the shifts that started on this local day."""
+
+    date: date
+    shifts: int
+
+
 class DayInfo(BaseModel):
-    """Short per-day entry for the day navigation panel."""
+    """Short per-day entry for the day navigation panel: a day with at least one shift."""
 
     date: date
     count: int
