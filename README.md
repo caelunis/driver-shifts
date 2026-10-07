@@ -6,7 +6,8 @@
 - **База данных:** PostgreSQL 16
 - **Клиент:** одна HTML-страница на чистом JS, раздаётся тем же сервером (сборка не нужна)
 - **Запуск:** Docker Compose
-- **Тесты:** pytest на настоящей PostgreSQL (145 тестов)
+- **Миграции:** dbmate (SQL-файлы с up и down)
+- **Тесты:** pytest: unit без базы и интеграционные на настоящей PostgreSQL (148 тестов)
 
 ![Сводка за день](docs/screenshots/day.png)
 
@@ -16,25 +17,50 @@
 docker compose up --build
 ```
 
-Открыть http://127.0.0.1:8080 и войти:
+Compose запускает по порядку:
+
+1. `db` — PostgreSQL 16;
+2. `migrate` — [dbmate](https://github.com/amacneil/dbmate) применяет миграции из `backend/db/migrations` и завершается;
+3. `bootstrap` — разовые задачи старта (`backend/scripts/bootstrap.py`): демо-аккаунты и первый администратор;
+4. `app` — API и клиент на http://127.0.0.1:8080. Приложение схему не создаёт и не меняет.
+
+Демо-аккаунты (при `SEED_DEMO=1`, по умолчанию):
 
 | Роль | E-mail | Пароль |
 |---|---|---|
-| Водитель | demo@example.com | demo12345 |
 | Администратор | admin@example.com | admin12345 |
+| Водитель с примером поездок | demo@example.com | demo12345 |
+| Водитель с комиссией 15% | erlan@example.com | erlan12345 |
 
-Демо-аккаунты создаются при `SEED_DEMO=1` (по умолчанию). Демо-водитель с поездками из `data/trips.json` появляется только в совсем пустой базе — если администратор его удалит, после перезапуска он не вернётся. Данные хранятся в томе `pgdata`; начать с чистой базы: `docker compose down -v`.
+Они создаются только в базе без аккаунтов, поэтому удалённый администратором демо-водитель после перезапуска не вернётся. Данные хранятся в томе `pgdata`; начать с чистой базы: `docker compose down -v`.
 
 Переменные — в [`.env.example`](.env.example); скопируйте его в `.env`, чтобы поменять значения.
+
+### Миграции
+
+Схема меняется только миграциями dbmate: каждая — один файл `backend/db/migrations/<время>_<название>.sql` с секциями `-- migrate:up` и `-- migrate:down`. Применённые версии хранятся в таблице `schema_migrations`.
+
+```bash
+cd backend
+export DATABASE_URL="postgres://shifts:shifts@127.0.0.1:5433/shifts?sslmode=disable"
+export DBMATE_MIGRATIONS_DIR=db/migrations DBMATE_NO_DUMP_SCHEMA=true
+
+dbmate new add_something   # создать новую миграцию
+dbmate up                  # применить
+dbmate rollback            # откатить последнюю
+dbmate status
+```
+
+Автоматический снимок схемы (`db/schema.sql`) отключён: источник истины — только миграции. Тест `tests/integration/test_migrations.py` проверяет, что все миграции применяются на пустую базу, полностью откатываются по одной и применяются снова.
 
 ### Администратор
 
 Самостоятельной регистрации нет: аккаунты водителей создаёт администратор. Первого администратора можно создать тремя способами:
 
-1. **Переменные окружения** `ADMIN_EMAIL` и `ADMIN_PASSWORD` — аккаунт создаётся при старте, если такого e-mail ещё нет.
-2. **Команда** (пароль спрашивается интерактивно и не попадает в историю shell):
+1. **Переменные окружения** `ADMIN_EMAIL` и `ADMIN_PASSWORD` — сервис `bootstrap` создаёт аккаунт, если такого e-mail ещё нет.
+2. **Скрипт** (пароль спрашивается интерактивно и не попадает в историю shell):
    ```bash
-   docker compose exec app python -m app.create_admin boss@company.kz --name "Иван"
+   docker compose run --rm bootstrap python -m scripts.create_admin boss@company.kz
    ```
 3. **Демо-администратор** при `SEED_DEMO=1` — для проверки, не для продакшена.
 
@@ -43,15 +69,22 @@ docker compose up --build
 ## Локальная разработка и тесты
 
 ```bash
+brew install dbmate
 docker compose up -d db                      # только PostgreSQL, порт 5433
 python3 -m venv .venv
-.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/pip install -r backend/requirements-dev.txt
 
-SEED_DEMO=1 .venv/bin/uvicorn app.main:app --port 8080 --reload
-.venv/bin/pytest -v
+cd backend
+DATABASE_URL="postgres://shifts:shifts@127.0.0.1:5433/shifts?sslmode=disable" \
+  dbmate --migrations-dir db/migrations --no-dump-schema up
+DATABASE_URL=postgresql://shifts:shifts@127.0.0.1:5433/shifts SEED_DEMO=1 ../.venv/bin/python -m scripts.bootstrap
+DATABASE_URL=postgresql://shifts:shifts@127.0.0.1:5433/shifts ../.venv/bin/uvicorn app.main:app --port 8080 --reload
+
+../.venv/bin/pytest -v                # все тесты
+../.venv/bin/pytest tests/unit        # только unit, без базы
 ```
 
-Тесты используют отдельную базу `shifts_test` (создаётся контейнером при первом запуске) и очищают её перед каждым тестом. Если PostgreSQL недоступна, тесты, которым нужна база, пропускаются с подсказкой, как её поднять.
+Интеграционные тесты пересоздают схему отдельной базы `shifts_test` (создаётся контейнером при первом запуске) теми же миграциями через dbmate и очищают таблицы перед каждым тестом. Если PostgreSQL или dbmate недоступны, такие тесты пропускаются с подсказкой.
 
 ## Что сделано
 
@@ -167,39 +200,42 @@ curl -b jar -H 'Content-Type: application/json' http://127.0.0.1:8080/api/trips 
    - неверный пароль и неизвестный e-mail дают одинаковый ответ за одинаковое время;
    - 5 неудачных попыток входа за 15 минут → 429 с `Retry-After`;
    - CSRF: изменяющие запросы принимают только `application/json`, которое не может отправить HTML-форма с чужого сайта.
-9. **Изменения схемы для существующих баз** применяются при старте и ничего не ломают: `ADD COLUMN IF NOT EXISTS role`, а старое ограничение `commission <= amount` заменяется на `< amount` с `NOT VALID` — уже записанные строки остаются, новое правило действует для новых. Строки из базы не перепроверяются текущими правилами модели, поэтому старая поездка с комиссией, равной сумме, по-прежнему открывается.
+9. **Схема — только миграции.** Приложение при старте схему не трогает; её применяет отдельный шаг (`dbmate up`), а разовые задачи вроде демо-данных — отдельный скрипт `bootstrap`. Аккаунты (`users`: e-mail, пароль, роль) отделены от профиля водителя (`drivers`: имя, авто, пояс, комиссия), администратор — пользователь без профиля водителя.
 
 ### Ограничения
 
 - Лимит попыток входа хранится в памяти процесса, поэтому приложение запускается одним воркером; для нескольких экземпляров лимит нужно вынести в общее хранилище (таблица или Redis).
 - Нет восстановления пароля и подтверждения e-mail — пароль водителю задаёт и меняет администратор.
-- Схема создаётся и обновляется при старте; при развитии проекта стоит перейти на миграции (Alembic).
 - Администратор не может редактировать или удалять поездки водителя — только смотреть.
 - Две действительно разные поездки без `id` с полностью совпадающими временем и суммами считаются одной; клиент с собственными `id` такого ограничения не имеет.
 
 ## Структура
 
 ```
-app/
-  main.py          # FastAPI: вход, профиль, поездки водителя, запуск
-  admin.py         # /api/admin/*: водители и их дневники
-  deps.py          # зависимости: сессия, роли, CSRF, cookie
-  commission.py    # расчёт комиссии по проценту
-  models.py        # Pydantic-модели и валидация
-  schema.sql       # схема PostgreSQL и её обновление для старых баз
-  db.py            # пул соединений, применение схемы
-  storage.py       # поездки: выборки и идемпотентное добавление
-  accounts.py      # аккаунты, сессии, профиль, запросы администратора
-  security.py      # хеширование паролей, лимит попыток входа
-  summary.py       # расчёт сводки за день (чистая функция)
-  seed.py          # демо-аккаунты, создание администратора
-  create_admin.py  # команда `python -m app.create_admin`
-static/index.html
-data/trips.json    # демо-данные
-db/init/           # создание тестовой базы в контейнере
-tests/             # summary, storage, api, auth, isolation, admin, commission, admin_bootstrap
-Dockerfile, docker-compose.yml, .env.example
+backend/
+  app/
+    main.py                # сборка FastAPI-приложения
+    core/                  # config (переменные окружения), db (пул), security, errors
+    api/
+      deps.py              # сессия, роли, CSRF, cookie
+      routes/              # health, auth, me, trips
+      routes/admin/        # drivers: водители и их дневники
+    schemas/               # Pydantic-модели запросов и ответов
+    services/              # бизнес-правила и транзакции: accounts, trips, commission, summary
+    repositories/          # SQL: users, drivers, trips
+  db/migrations/           # миграции dbmate
+  scripts/                 # вызываемые скрипты: bootstrap, seed_demo, create_admin; data/demo_trips.json
+  static/index.html        # текущий клиент (временно, до отдельного frontend/)
+  tests/
+    unit/                  # без базы
+    integration/           # на PostgreSQL: API, права, миграции, скрипты
+    factories.py
+  Dockerfile, requirements.txt, requirements-dev.txt
+docker/postgres/init/      # создание тестовой базы при первом старте контейнера
+docker-compose.yml, .env.example
 ```
+
+Роуты только принимают запрос и отдают ответ; правила и границы транзакций — в `services/`; SQL — в `repositories/`, функции получают соединение и транзакциями не управляют.
 
 ## Как использовался ИИ
 

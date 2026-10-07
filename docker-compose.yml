@@ -1,36 +1,63 @@
-services:
-  app:
-    build: .
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-shifts}:${POSTGRES_PASSWORD:-shifts}@db:5432/${POSTGRES_DB:-shifts}
-      SEED_DEMO: ${SEED_DEMO:-1}
-      COOKIE_SECURE: ${COOKIE_SECURE:-0}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
-    ports:
-      - "127.0.0.1:8080:8000"
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: unless-stopped
+x-database-env: &database-env
+  POSTGRES_USER: ${POSTGRES_USER:-shifts}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shifts}
+  POSTGRES_DB: ${POSTGRES_DB:-shifts}
 
+services:
   db:
     image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-shifts}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shifts}
-      POSTGRES_DB: ${POSTGRES_DB:-shifts}
+    environment: *database-env
     ports:
       - "127.0.0.1:5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       # Runs only on first start of an empty volume: creates the test database
-      - ./db/init:/docker-entrypoint-initdb.d:ro
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 2s
       timeout: 3s
       retries: 20
+
+  # Applies backend/db/migrations; the app itself never changes the schema
+  migrate:
+    image: ghcr.io/amacneil/dbmate:2.36
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-shifts}:${POSTGRES_PASSWORD:-shifts}@db:5432/${POSTGRES_DB:-shifts}?sslmode=disable
+      DBMATE_MIGRATIONS_DIR: /db/migrations
+      DBMATE_NO_DUMP_SCHEMA: "true"
+      DBMATE_WAIT: "true"
+    volumes:
+      - ./backend/db:/db:ro
+    command: ["up"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # One-off start-up tasks: demo accounts, first admin (scripts/bootstrap.py)
+  bootstrap:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-shifts}:${POSTGRES_PASSWORD:-shifts}@db:5432/${POSTGRES_DB:-shifts}
+      SEED_DEMO: ${SEED_DEMO:-1}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    command: ["python", "-m", "scripts.bootstrap"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  app:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-shifts}:${POSTGRES_PASSWORD:-shifts}@db:5432/${POSTGRES_DB:-shifts}
+      COOKIE_SECURE: ${COOKIE_SECURE:-0}
+    ports:
+      - "127.0.0.1:8080:8000"
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+    restart: unless-stopped
 
 volumes:
   pgdata:
