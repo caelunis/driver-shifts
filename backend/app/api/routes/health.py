@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from psycopg_pool import ConnectionPool
 
 from app.api.deps import get_pool
+from app.core.errors import ApiError
 
 router = APIRouter()
 
@@ -13,5 +14,5 @@ def health(pool: ConnectionPool = Depends(get_pool)):
         with pool.connection(timeout=2) as conn:
             conn.execute("SELECT 1")
     except Exception:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Database unavailable")
+        raise ApiError("db_unavailable", "Database unavailable", status=503)
     return {"status": "ok"}

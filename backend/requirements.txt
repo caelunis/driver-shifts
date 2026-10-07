@@ -5,3 +5,4 @@ email-validator>=2.1
 psycopg[binary]>=3.2
 psycopg-pool>=3.2
 pydantic-settings>=2.2
+tzdata==2025.2

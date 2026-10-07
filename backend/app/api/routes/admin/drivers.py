@@ -1,10 +1,10 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Response, status
 from psycopg_pool import ConnectionPool
 
 from app.api.deps import get_pool, require_admin
-from app.core.errors import EmailTaken
+from app.core.errors import Conflict, EmailTaken, NotFound, PlateTaken
 from app.schemas.accounts import DriverCreate, DriverInfo, DriverUpdate
 from app.schemas.shifts import Shift, ShiftDetail, ShiftPatch
 from app.schemas.trips import DayInfo, DaySummary, Trip, TripPatch
@@ -18,7 +18,7 @@ def existing_driver(driver_id: int, pool: ConnectionPool = Depends(get_pool)) ->
     never found here, so an admin cannot be edited or deleted through this API."""
     driver = accounts.get_driver(pool, driver_id)
     if driver is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Driver not found")
+        raise NotFound("driver_not_found", "Driver not found")
     return driver
 
 
@@ -32,7 +32,9 @@ def create_driver(data: DriverCreate, pool: ConnectionPool = Depends(get_pool)):
     try:
         driver_id = accounts.create_driver(pool, data)
     except EmailTaken:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Email is already registered")
+        raise Conflict("email_taken", "Email is already registered")
+    except PlateTaken:
+        raise Conflict("plate_taken", "Another driver has this plate number")
     return accounts.get_driver(pool, driver_id)
 
 
@@ -44,7 +46,10 @@ def get_driver(driver: DriverInfo = Depends(existing_driver)):
 @router.patch("/{driver_id}", response_model=DriverInfo)
 def update_driver(changes: DriverUpdate, driver: DriverInfo = Depends(existing_driver),
                   pool: ConnectionPool = Depends(get_pool)):
-    return accounts.update_driver(pool, driver.id, changes.model_dump(exclude_unset=True))
+    try:
+        return accounts.update_driver(pool, driver.id, changes.model_dump(exclude_unset=True))
+    except PlateTaken:
+        raise Conflict("plate_taken", "Another driver has this plate number")
 
 
 @router.delete("/{driver_id}", status_code=status.HTTP_204_NO_CONTENT)

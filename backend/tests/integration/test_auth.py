@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.api import code, error
 from tests.factories import create_driver
 from app.main import create_app
 
@@ -55,7 +56,7 @@ def test_session_cookie_flags(app, account):
 def test_email_is_unique_case_insensitive(db, account):
     from app.core.errors import EmailTaken
     with pytest.raises(EmailTaken):
-        create_driver(db, "DRIVER@example.com", "password123")
+        create_driver(db, "DRIVER@example.com", "horse-battery-9")
 
 
 def test_password_is_stored_hashed(client, db):
@@ -135,15 +136,16 @@ def test_logout_requires_json(client):
 # --- profile: a driver may change only the timezone ---
 
 def test_driver_changes_own_timezone(client):
-    r = client.patch("/api/me", json={"default_tz": "+06:00"})
+    r = client.patch("/api/me", json={"default_tz": "Asia/Aqtau"})
     assert r.status_code == 200
-    assert r.json()["default_tz"] == "+06:00"
-    assert client.get("/api/me").json()["default_tz"] == "+06:00"
+    assert r.json()["default_tz"] == "Asia/Aqtau"
+    assert client.get("/api/me").json()["default_tz"] == "Asia/Aqtau"
 
 
 @pytest.mark.parametrize("field, value", [
     ("name", "Другое имя"),
-    ("car", "Toyota Camry"),
+    ("car_model", "Toyota Camry"),
+    ("car_plate", "123 ABC 02"),
     ("default_commission_pct", 5),
     ("email", "evil@example.com"),
     ("password", "new-password"),
@@ -153,24 +155,31 @@ def test_driver_cannot_change_admin_managed_fields(client, field, value):
     before = client.get("/api/me").json()
     r = client.patch("/api/me", json={field: value})
     assert r.status_code == 403
-    assert r.json()["detail"]["fields"] == [field]
+    assert code(r) == "admin_managed_fields"
+    assert r.json()["error"]["ctx"]["fields"] == [field]
     assert client.get("/api/me").json() == before
 
 
 def test_mixed_patch_is_rejected_as_a_whole(client):
-    r = client.patch("/api/me", json={"default_tz": "+06:00", "car": "x"})
+    r = client.patch("/api/me", json={"default_tz": "Asia/Aqtau", "car_model": "x"})
     assert r.status_code == 403
-    assert client.get("/api/me").json()["default_tz"] == "+05:00"  # nothing applied
+    assert client.get("/api/me").json()["default_tz"] == "Asia/Almaty"  # nothing applied
 
 
-@pytest.mark.parametrize("value", ["+5", "+15:00", None, 5])
-def test_timezone_validation(client, value):
+@pytest.mark.parametrize("value, expected", [
+    ("+05:00", "unknown_timezone"),     # offsets are no longer accepted
+    ("Asia/Nowhere", "unknown_timezone"),
+    ("asia/almaty", "unknown_timezone"),
+    (None, "string_type"),
+    (5, "string_type"),
+])
+def test_timezone_validation(client, value, expected):
     r = client.patch("/api/me", json={"default_tz": value})
     assert r.status_code == 422
-    assert r.json()["detail"][0]["loc"] == ["body", "default_tz"]
+    assert error(r) == ("default_tz", expected)
 
 
 def test_profile_requires_auth(app):
     anon = TestClient(app)
     assert anon.get("/api/me").status_code == 401
-    assert anon.patch("/api/me", json={"default_tz": "+06:00"}).status_code == 401
+    assert anon.patch("/api/me", json={"default_tz": "Asia/Aqtau"}).status_code == 401

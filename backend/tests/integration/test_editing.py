@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from app.main import create_app
 from app.services import shifts as shifts_service
 from app.services import trips as trips_service
+from tests.api import code, error, field_ctx
 from tests.factories import create_driver, day_shift, set_commission_pct
 
 
@@ -16,7 +17,7 @@ def app(db):
     return create_app(db)
 
 
-def logged_in(app, email, password="password123"):
+def logged_in(app, email, password="horse-battery-9"):
     c = TestClient(app)
     assert c.post("/api/auth/login", json={"email": email, "password": password}).status_code == 200
     return c
@@ -29,7 +30,7 @@ def driver(app, driver_id):
 
 @pytest.fixture
 def admin(app, db):
-    create_driver(db, "admin@example.com", "password123", role="admin")
+    create_driver(db, "admin@example.com", "horse-battery-9", role="admin")
     return logged_in(app, "admin@example.com")
 
 
@@ -46,16 +47,6 @@ def trip(shift_id=1, **overrides):
     return {"id": "t1", "shift_id": shift_id, "start": at("10-01T08:10"),
             "end": at("10-01T08:32"), "amount": 2400, "payment": "card", "commission": 360,
             **overrides}
-
-
-def error(r) -> tuple[str, str]:
-    """(field, type) of a single 422 error."""
-    [e] = r.json()["detail"]
-    return e["loc"][-1], e["type"]
-
-
-def code(r) -> str:
-    return r.json()["detail"]["code"]
 
 
 # --- trips: commission ---
@@ -85,7 +76,7 @@ def test_commission_of_percent_trip_must_match(db, driver, driver_id, shift):
 
     r = driver.patch("/api/trips/t1", json={"amount": 3000, "commission": 100})
     assert r.status_code == 422 and error(r) == ("commission", "commission_fixed")
-    assert r.json()["detail"][0]["ctx"]["expected"] == 450
+    assert field_ctx(r)["expected"] == 450
     r = driver.patch("/api/trips/t1", json={"amount": 3000, "commission": 450})
     assert r.status_code == 200
 
@@ -148,7 +139,7 @@ def test_move_trip_to_another_shift(db, driver, driver_id, shift):
 
 
 def test_cannot_move_trip_to_someone_elses_shift(db, driver, shift):
-    bob = create_driver(db, "bob@example.com", "password123")
+    bob = create_driver(db, "bob@example.com", "horse-battery-9")
     bobs_shift = day_shift(db, bob, day="2026-10-02")
     driver.post("/api/trips", json=trip())
     r = driver.patch("/api/trips/t1", json={"shift_id": bobs_shift})
@@ -186,7 +177,7 @@ def test_delete_trip(driver, shift):
 
 def test_other_drivers_trip_is_not_found(app, db, driver, shift):
     driver.post("/api/trips", json=trip())
-    create_driver(db, "bob@example.com", "password123")
+    create_driver(db, "bob@example.com", "horse-battery-9")
     bob = logged_in(app, "bob@example.com")
     assert bob.patch("/api/trips/t1", json={"amount": 3000}).status_code == 404
     assert bob.delete("/api/trips/t1").status_code == 404
@@ -245,7 +236,7 @@ def test_admin_edits_without_limit(admin, driver_id, old_trip):
 
 
 def test_admin_cannot_reach_other_drivers_entries_through_wrong_path(db, admin, driver_id, shift):
-    bob = create_driver(db, "bob@example.com", "password123")
+    bob = create_driver(db, "bob@example.com", "horse-battery-9")
     assert admin.patch(f"/api/admin/drivers/{bob}/shifts/{shift}", json={"note": "x"}).status_code == 404
     assert admin.delete(f"/api/admin/drivers/{bob}/shifts/{shift}").status_code == 404
 
@@ -339,7 +330,7 @@ def test_delete_shift_with_its_trips(db, driver, shift):
 
 
 def test_other_drivers_shift_is_not_found(app, db, driver, shift):
-    create_driver(db, "bob@example.com", "password123")
+    create_driver(db, "bob@example.com", "horse-battery-9")
     bob = logged_in(app, "bob@example.com")
     assert bob.patch(f"/api/shifts/{shift}", json={"note": "x"}).status_code == 404
     assert bob.delete(f"/api/shifts/{shift}").status_code == 404

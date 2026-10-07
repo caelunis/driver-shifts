@@ -26,12 +26,12 @@ def run_script(module: str, *args: str, stdin: str = "", **env) -> subprocess.Co
 
 
 def test_new_accounts_default_to_driver_role(db):
-    create_driver(db, "d@example.com", "password123")
+    create_driver(db, "d@example.com", "horse-battery-9")
     assert roles(db) == {"d@example.com": "driver"}
 
 
 def test_admin_has_no_driver_profile(db):
-    admin = create_driver(db, "boss@example.com", "password123", role="admin")
+    admin = create_driver(db, "boss@example.com", "horse-battery-9", role="admin")
     assert accounts.get_profile(db, admin).name is None
     with db.connection() as conn:
         assert conn.execute("SELECT count(*) AS n FROM drivers").fetchone()["n"] == 0
@@ -39,18 +39,18 @@ def test_admin_has_no_driver_profile(db):
 
 def test_role_is_restricted(db):
     with pytest.raises(psycopg.errors.CheckViolation):
-        create_driver(db, "x@example.com", "password123", role="superuser")
+        create_driver(db, "x@example.com", "horse-battery-9", role="superuser")
 
 
 def test_ensure_admin_creates_once(db):
-    assert accounts.ensure_admin(db, "Boss@Example.com", "password123") is True
+    assert accounts.ensure_admin(db, "Boss@Example.com", "horse-battery-9") is True
     assert accounts.ensure_admin(db, "boss@example.com", "another-pass") is False
     assert roles(db) == {"boss@example.com": "admin"}
 
 
 def test_ensure_admin_never_promotes_existing_driver(db):
-    create_driver(db, "d@example.com", "password123")
-    assert accounts.ensure_admin(db, "d@example.com", "password123") is False
+    create_driver(db, "d@example.com", "horse-battery-9")
+    assert accounts.ensure_admin(db, "d@example.com", "horse-battery-9") is False
     assert roles(db) == {"d@example.com": "driver"}
 
 
@@ -64,7 +64,7 @@ def test_seed_on_empty_database(db):
 
 
 def test_seed_is_skipped_when_accounts_exist(db):
-    create_driver(db, "existing@example.com", "password123")
+    create_driver(db, "existing@example.com", "horse-battery-9")
     assert seed(db) is False
     assert roles(db) == {"existing@example.com": "driver"}
 

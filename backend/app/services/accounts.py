@@ -4,11 +4,14 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 from psycopg_pool import ConnectionPool
+from pydantic_core import PydanticCustomError
 
+from app.core.errors import DomainValidationError
 from app.core.security import hash_password, verify_password
 from app.repositories import drivers as drivers_repo
 from app.repositories import users as users_repo
 from app.schemas.accounts import DriverCreate, DriverInfo, Profile
+from app.schemas.common import check_password
 
 log = logging.getLogger(__name__)
 
@@ -76,16 +79,24 @@ def set_timezone(pool: ConnectionPool, driver_id: int, tz: str) -> Profile:
 
 def create_driver(pool: ConnectionPool, data: DriverCreate) -> int:
     """The account and its profile in one transaction: both or neither."""
-    with pool.connection() as conn:
+    # Explicit transaction: the repositories' savepoints would otherwise commit on their own
+    # when they run first on a fresh connection
+    with pool.connection() as conn, conn.transaction():
         user_id = users_repo.insert(conn, data.email, hash_password(data.password), "driver")
-        drivers_repo.insert_profile(conn, user_id, data.name, data.car, data.default_tz,
-                                    data.default_commission_pct)
+        drivers_repo.insert_profile(conn, user_id, data.name, data.car_model, data.car_plate,
+                                    data.default_tz, data.default_commission_pct)
     return user_id
 
 
 def update_driver(pool: ConnectionPool, driver_id: int, changes: dict) -> DriverInfo:
     """Apply profile changes; a new password also ends all of the driver's sessions."""
-    with pool.connection() as conn:
+    with pool.connection() as conn, conn.transaction():
+        if "password" in changes:
+            email = drivers_repo.get_profile(conn, driver_id).email
+            try:
+                check_password(changes["password"], email)
+            except PydanticCustomError as e:
+                raise DomainValidationError("password", e.type, e.message())
         drivers_repo.update_profile(conn, driver_id, changes)
         if "password" in changes:
             users_repo.set_password_hash(conn, driver_id, hash_password(changes["password"]))

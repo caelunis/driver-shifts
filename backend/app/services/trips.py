@@ -45,6 +45,14 @@ def _check_fits_shift(trip: TripIn, shift: dict, by_admin: bool) -> None:
     shifts_service.check_not_in_future("end", trip.end)
 
 
+def _check_no_overlap(conn, driver_id: int, trip: Trip) -> None:
+    # Also enforced by the trips_no_overlap constraint; checked first to name the other trip.
+    # The id itself is excluded, so resending the same trip stays idempotent.
+    other = trips_repo.overlapping(conn, driver_id, trip.start, trip.end, trip.id)
+    if other is not None:
+        raise Conflict("trip_overlap", "Overlaps another trip of this driver", trip_id=other)
+
+
 def add(pool: ConnectionPool, driver_id: int, trip_in: TripIn, *,
         by_admin: bool = False) -> tuple[Trip, bool]:
     """Idempotent insert into one of the driver's shifts. Returns (trip, created).
@@ -61,6 +69,7 @@ def add(pool: ConnectionPool, driver_id: int, trip_in: TripIn, *,
         trip = resolve_commission(trip_in, pct).to_trip()
         # Remember the percent: editing the amount later recomputes with this one
         trip.commission_pct = float(pct) if pct is not None else None
+        _check_no_overlap(conn, driver_id, trip)
         if trips_repo.insert_if_absent(conn, driver_id, trip):
             return trip, True
         existing = trips_repo.get(conn, driver_id, trip.id)
@@ -110,6 +119,7 @@ def update(pool: ConnectionPool, driver_id: int, trip_id: str, changes: dict, *,
         _check_fits_shift(trip_in, shifts[target_id], by_admin)
         trip = resolve_commission(trip_in, current.commission_pct).to_trip()
         trip.commission_pct = current.commission_pct
+        _check_no_overlap(conn, driver_id, trip)
         trips_repo.update(conn, driver_id, trip)
         return trip
 

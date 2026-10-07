@@ -1,23 +1,27 @@
 import hashlib
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 from pydantic_core import PydanticCustomError
 
-from .common import AwareDatetime
+from .common import AwareDatetime, StrictModel
 
 Payment = Literal["cash", "card"]
 
+MAX_AMOUNT = 500_000  # KZT; a typo guard, far above any real fare
+MIN_DURATION = timedelta(minutes=1)
+MAX_DURATION = timedelta(hours=6)
 
-class TripIn(BaseModel):
+
+class TripIn(StrictModel):
     """Trip as sent by a client. The id is optional."""
 
     id: Optional[str] = Field(default=None, min_length=1, max_length=64)
     shift_id: int = Field(gt=0)
     start: AwareDatetime
     end: AwareDatetime
-    amount: int = Field(gt=0, description="Trip amount, KZT")
+    amount: int = Field(gt=0, le=MAX_AMOUNT, description="Trip amount, KZT")
     payment: Payment
     # Omitted when the admin set a commission percent for the driver: the server computes it
     commission: Optional[int] = Field(default=None, ge=0, description="Commission, KZT")
@@ -31,8 +35,15 @@ class TripIn(BaseModel):
     @classmethod
     def end_after_start(cls, v: datetime, info: ValidationInfo) -> datetime:
         start = info.data.get("start")  # absent if start itself failed validation
-        if start is not None and v <= start:
+        if start is None:
+            return v
+        if v <= start:
             raise PydanticCustomError("end_before_start", "End must be later than start")
+        if v - start < MIN_DURATION:
+            raise PydanticCustomError("trip_too_short", "A trip lasts at least a minute")
+        if v - start > MAX_DURATION:
+            raise PydanticCustomError("trip_too_long", "A trip lasts at most 6 hours",
+                                      {"hours": 6})
         return v
 
     @field_validator("commission")
@@ -67,15 +78,13 @@ class TripIn(BaseModel):
         return Trip(**data)
 
 
-class TripPatch(BaseModel):
+class TripPatch(StrictModel):
     """Changes to a stored trip; omitted fields keep their values. The id never changes."""
-
-    model_config = ConfigDict(extra="forbid")
 
     shift_id: Optional[int] = Field(default=None, gt=0)
     start: Optional[AwareDatetime] = None
     end: Optional[AwareDatetime] = None
-    amount: Optional[int] = Field(default=None, gt=0)
+    amount: Optional[int] = Field(default=None, gt=0, le=MAX_AMOUNT)
     payment: Optional[Payment] = None
     commission: Optional[int] = Field(default=None, ge=0)
 

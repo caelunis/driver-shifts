@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from app.main import create_app
 from app.schemas.trips import TripIn
 from app.services import trips as trips_service
+from tests.api import fields
 from tests.factories import day_shift
 
 # shift_id 1: the day shift created by the `client` fixture
@@ -20,7 +21,7 @@ def client(db, driver_id):
     for t in (T1, T2):
         trips_service.add(db, driver_id, TripIn(**t))
     c = TestClient(create_app(db))
-    r = c.post("/api/auth/login", json={"email": "driver@example.com", "password": "password123"})
+    r = c.post("/api/auth/login", json={"email": "driver@example.com", "password": "horse-battery-9"})
     assert r.status_code == 200
     return c
 
@@ -123,8 +124,7 @@ def test_all_field_errors_reported_at_once(client):
     bad = {**NEW, "end": "2026-10-01T09:00:00+05:00", "commission": 5000, "payment": "crypto"}
     r = client.post("/api/trips", json=bad)
     assert r.status_code == 422
-    errors = {e["loc"][-1]: e["type"] for e in r.json()["detail"]}
-    assert errors == {
+    assert fields(r) == {
         "end": "end_before_start",
         "commission": "commission_exceeds_amount",
         "payment": "literal_error",
@@ -134,7 +134,7 @@ def test_all_field_errors_reported_at_once(client):
 def test_missing_timezone_error_type(client):
     r = client.post("/api/trips", json={**NEW, "start": "2026-10-01T10:00:00"})
     assert r.status_code == 422
-    assert {e["loc"][-1]: e["type"] for e in r.json()["detail"]}["start"] == "timezone_required"
+    assert fields(r)["start"] == "timezone_required"
 
 
 def test_commission_just_below_amount_is_accepted(client):
@@ -148,7 +148,7 @@ def test_legacy_trip_with_commission_equal_to_amount_is_still_readable(client, d
         conn.execute("ALTER TABLE trips DROP CONSTRAINT trips_commission_check")
         conn.execute(
             "INSERT INTO trips (driver_id, id, start_at, end_at, start_offset_min, end_offset_min,"
-            " amount, payment, commission, shift_id) SELECT driver_id, 'legacy', start_at, end_at,"
+            " amount, payment, commission, shift_id) SELECT driver_id, 'legacy', start_at + interval '3 hours', end_at + interval '3 hours',"
             " start_offset_min, end_offset_min, 1000, payment, 1000, shift_id FROM trips WHERE id = 't1'"
         )
         conn.execute("ALTER TABLE trips ADD CONSTRAINT trips_commission_check"

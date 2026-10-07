@@ -386,7 +386,7 @@
           </label>
           <label class="field" data-field="tz">
             <span>Часовой пояс</span>
-            <select name="tz" class="tz-select"></select>
+            <select name="tz" class="offset-select"></select>
             <small class="error"></small>
           </label>
         </div>
@@ -414,6 +414,10 @@
         <input type="text" name="car" disabled placeholder="не указан">
       </label>
       <label class="field">
+        <span>Госномер</span>
+        <input type="text" name="plate" disabled placeholder="не указан">
+      </label>
+      <label class="field">
         <span>Комиссия, %</span>
         <input type="text" name="pct" disabled placeholder="не задана — вводится в каждой поездке">
       </label>
@@ -421,7 +425,7 @@
       <label class="field" data-field="default_tz">
         <span>Часовой пояс</span>
         <select name="default_tz" class="tz-select"></select>
-        <small class="hint">Подставляется в форму новой поездки.</small>
+        <small class="hint">По нему считается время в форме новой поездки.</small>
         <small class="error"></small>
       </label>
       <button type="submit" class="primary">Сохранить</button>
@@ -449,11 +453,18 @@
       <input type="text" name="name" maxlength="100">
       <small class="error"></small>
     </label>
-    <label class="field" data-field="car">
-      <span>Автомобиль</span>
-      <input type="text" name="car" maxlength="100" placeholder="Toyota Camry, 123 ABC 02">
-      <small class="error"></small>
-    </label>
+    <div class="row">
+      <label class="field" data-field="car_model">
+        <span>Автомобиль</span>
+        <input type="text" name="car_model" maxlength="100" placeholder="Toyota Camry">
+        <small class="error"></small>
+      </label>
+      <label class="field" data-field="car_plate">
+        <span>Госномер</span>
+        <input type="text" name="car_plate" maxlength="12" placeholder="123 ABC 02" autocomplete="off">
+        <small class="error"></small>
+      </label>
+    </div>
     <div class="row">
       <label class="field" data-field="default_commission_pct">
         <span>Комиссия, %</span>
@@ -560,29 +571,42 @@ function toast(kind, text, ms = 4000) {
 
 /* ---------- form helpers ---------- */
 
-// Server error types -> Russian messages. Custom types come from app/models.py and app/commission.py.
+// Server error codes -> Russian messages. Each field error is {field, code, message, ctx}.
 function errorMessage(e) {
-  const field = e.loc.at(-1);
-  switch (e.type) {
+  const field = e.field;
+  switch (e.code) {
     case "missing": return "Заполните поле";
     case "blank": return "Не может быть пустым";
+    case "null_not_allowed": return "Заполните поле";
+    case "extra_forbidden": return "Неизвестное поле";
+    case "invalid_characters": return "Недопустимые символы";
+    case "name_without_letters": return "Имя должно содержать буквы";
+    case "invalid_plate": return "Номер в формате 123 ABC 02";
+    case "unknown_timezone": return "Неизвестный часовой пояс";
+    case "password_like_email": return "Пароль не должен совпадать с e-mail";
+    case "password_too_common": return "Слишком простой пароль";
+    case "trip_too_short": return "Поездка длится не меньше минуты";
+    case "trip_too_long": return "Поездка длится не больше 6 часов";
+    case "shift_not_found": return "Сначала начните смену";
+    case "outside_shift": return "Поездка должна быть внутри смены";
+    case "in_future": return "Время ещё не наступило";
+    case "too_old": return "Можно вносить не старше 7 дней";
     case "greater_than": return `Должно быть больше ${e.ctx.gt}`;
     case "greater_than_equal": return `Не может быть меньше ${e.ctx.ge}`;
     case "less_than": return `Должно быть меньше ${e.ctx.lt}`;
     case "less_than_equal": return `Не может быть больше ${e.ctx.le}`;
     case "string_too_short": return e.ctx.min_length === 1 ? "Заполните поле" : `Не меньше ${e.ctx.min_length} символов`;
     case "string_too_long": return `Не больше ${e.ctx.max_length} символов`;
-    case "string_pattern_mismatch": return "Формат: +05:00";
     case "int_parsing": case "int_type": case "int_from_float": return "Введите целое число";
     case "float_parsing": case "float_type": return "Введите число";
     case "datetime_parsing": case "datetime_type": case "datetime_from_date_parsing": return "Укажите дату и время";
     case "literal_error": return "Выберите значение из списка";
-    case "value_error": return field === "email" ? "Некорректный e-mail" : e.msg.replace(/^Value error, /, "");
+    case "value_error": return field === "email" ? "Некорректный e-mail" : e.message.replace(/^Value error, /, "");
     case "timezone_required": return "Укажите часовой пояс";
     case "end_before_start": return "Окончание должно быть позже начала";
     case "commission_exceeds_amount": return "Комиссия должна быть меньше суммы";
     case "commission_fixed": return `Комиссию задаёт администратор: ${fmt(e.ctx.expected)}`;
-    default: return e.msg;
+    default: return e.message;
   }
 }
 
@@ -604,11 +628,12 @@ function setFieldError(form, name, text) {
 
 // Shows 422 errors under their fields; whatever has no field goes to a toast
 function showValidation(form, res) {
-  const unplaced = res.body.detail.filter(e => !setFieldError(form, e.loc.at(-1), errorMessage(e)));
+  const unplaced = res.body.error.fields.filter(e => !setFieldError(form, e.field, errorMessage(e)));
   if (unplaced.length) toast("err", unplaced.map(errorMessage).join("; "));
 }
 
-const isValidation = res => res.status === 422 && Array.isArray(res.body?.detail);
+const isValidation = res => res.status === 422 && Array.isArray(res.body?.error?.fields);
+const errorCode = res => res.body?.error?.code;
 const retryText = res => {
   const s = Number(res.headers.get("Retry-After")) || 60;
   return `Слишком много попыток. Попробуйте через ${plural(Math.ceil(s / 60), "минуту", "минуты", "минут")}`;
@@ -637,7 +662,7 @@ async function submitting(form, fn) {
   }
 }
 
-// UTC offsets for the timezone selects: whole hours plus the common half/quarter ones
+// UTC offsets for the trip form: whole hours plus the common half/quarter ones
 const TZ_OFFSETS = (() => {
   const mins = [];
   for (let h = -12; h <= 14; h++) mins.push(h * 60);
@@ -647,9 +672,34 @@ const TZ_OFFSETS = (() => {
     return `${sign}${pad(Math.floor(a / 60))}:${pad(a % 60)}`;
   });
 })();
-document.querySelectorAll(".tz-select").forEach(sel => {
+document.querySelectorAll(".offset-select").forEach(sel => {
   sel.innerHTML = TZ_OFFSETS.map(o => `<option value="${o}">UTC${o === "+00:00" ? "" : o}</option>`).join("");
 });
+
+// The current UTC offset of an IANA zone, e.g. "Asia/Almaty" -> "+05:00"
+function zoneOffset(tz) {
+  try {
+    const name = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "longOffset" })
+      .formatToParts(new Date()).find(p => p.type === "timeZoneName").value;  // "GMT+05:00"
+    return name === "GMT" ? "+00:00" : name.slice(3);
+  } catch {
+    return "+05:00";
+  }
+}
+
+// Profile timezones: IANA names, Kazakhstan first
+const KZ_ZONES = ["Asia/Almaty", "Asia/Aqtau", "Asia/Aqtobe", "Asia/Atyrau", "Asia/Oral",
+                  "Asia/Qostanay", "Asia/Qyzylorda"];
+const ALL_ZONES = typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [];
+document.querySelectorAll(".tz-select").forEach(sel => {
+  const opt = z => `<option value="${z}">${z.replace(/_/g, " ")} (UTC${zoneOffset(z)})</option>`;
+  sel.innerHTML = `<optgroup label="Казахстан">${KZ_ZONES.map(opt).join("")}</optgroup>`
+    + `<optgroup label="Все">${ALL_ZONES.filter(z => !KZ_ZONES.includes(z)).map(opt).join("")}</optgroup>`;
+});
+
+// "123ABC02" -> "123 ABC 02"
+const plateText = p => p ? p.replace(/^(\d{3})([A-Z]+)(\d{2})$/, "$1 $2 $3") : "";
+const carText = d => [d.car_model, plateText(d.car_plate)].filter(Boolean).join(", ");
 
 document.querySelectorAll("dialog [data-close]").forEach(b => b.onclick = () => b.closest("dialog").close());
 
@@ -665,7 +715,7 @@ function setHeader() {
   $("navDrivers").hidden = !admin;
   if (logged) {
     // The badge already says "Администратор"; the email tells which admin it is
-    $("who").textContent = admin ? me.email : me.car ? `${me.name} · ${me.car}` : me.name;
+    $("who").textContent = admin ? me.email : carText(me) ? `${me.name} · ${carText(me)}` : me.name;
     $("who").title = me.email;
   }
   const hash = location.hash;
@@ -738,7 +788,8 @@ function fillProfile() {
   clearErrors(form);
   form.email.value = me.email;
   form.elements.name.value = me.name;
-  form.car.value = me.car;
+  form.car.value = me.car_model;
+  form.plate.value = plateText(me.car_plate);
   form.pct.value = me.default_commission_pct == null ? "" : pctText(me.default_commission_pct);
   form.default_tz.value = me.default_tz;
 }
@@ -775,7 +826,7 @@ function renderDrivers(q) {
   $("driverRows").innerHTML = drivers.map(d => `
     <tr data-id="${d.id}">
       <td><div class="driver-name">${esc(d.name)}</div><div class="muted">${esc(d.email)}</div></td>
-      <td class="hide-sm ${d.car ? "" : "muted"}">${esc(d.car || "—")}</td>
+      <td class="hide-sm ${carText(d) ? "" : "muted"}">${esc(carText(d) || "—")}</td>
       <td class="num hide-sm ${d.default_commission_pct == null ? "muted" : ""}">${pctText(d.default_commission_pct)}</td>
       <td class="num hide-sm">${d.trips_count}</td>
       <td class="num hide-sm">${fmt(d.revenue)}</td>
@@ -822,9 +873,10 @@ function openDriverDialog(driver = null) {
   driverForm.email.disabled = !create;  // email is the login, it is not editable
   driverForm.email.value = driver?.email ?? "";
   driverForm.elements.name.value = driver?.name ?? "";
-  driverForm.car.value = driver?.car ?? "";
+  driverForm.car_model.value = driver?.car_model ?? "";
+  driverForm.car_plate.value = plateText(driver?.car_plate);
   driverForm.default_commission_pct.value = driver?.default_commission_pct ?? "";
-  driverForm.default_tz.value = driver?.default_tz ?? "+05:00";
+  driverForm.default_tz.value = driver?.default_tz ?? "Asia/Almaty";
   $("driverDialog").showModal();
   (create ? driverForm.email : driverForm.elements.name).focus();
 }
@@ -841,7 +893,8 @@ driverForm.onsubmit = e => {
   const f = driverForm, pct = f.default_commission_pct.value, pw = f.password.value;
   const data = {
     name: f.elements.name.value,
-    car: f.car.value,
+    car_model: f.car_model.value,
+    car_plate: f.car_plate.value.trim() || null,
     default_tz: f.default_tz.value,
     default_commission_pct: pct === "" ? null : Number(pct),
   };
@@ -854,7 +907,8 @@ driverForm.onsubmit = e => {
       res = await api("/api/admin/drivers", { method: "POST", json: { ...data, email: f.email.value, password: pw } });
     }
     if (isValidation(res)) return showValidation(f, res);
-    if (res.status === 409) return setFieldError(f, "email", "Этот e-mail уже зарегистрирован");
+    if (errorCode(res) === "email_taken") return setFieldError(f, "email", "Этот e-mail уже зарегистрирован");
+    if (errorCode(res) === "plate_taken") return setFieldError(f, "car_plate", "Этот номер уже у другого водителя");
     if (res.status === 404) { $("driverDialog").close(); toast("err", "Водитель уже удалён"); return refreshAdmin(); }
     if (!res.ok) return res.status !== 401 && toast("err", `Ошибка сервера (${res.status})`);
 
@@ -915,7 +969,7 @@ async function enterAdminDiary(id) {
   if (!res.ok) return;
   const d = res.body;
   $("adDriverName").textContent = d.name;
-  $("adDriverMeta").textContent = [d.email, d.car, d.default_commission_pct == null ? null : `комиссия ${pctText(d.default_commission_pct)}`, trips(d.trips_count)]
+  $("adDriverMeta").textContent = [d.email, carText(d), d.default_commission_pct == null ? null : `комиссия ${pctText(d.default_commission_pct)}`, trips(d.trips_count)]
     .filter(Boolean).join(" · ");
   await enterDiary(`/api/admin/drivers/${id}`);
 }
@@ -1058,7 +1112,7 @@ function applyCommissionMode() {
 function resetTripForm() {
   form.reset();
   clearErrors(form);
-  form.tz.value = me.default_tz;
+  form.tz.value = zoneOffset(me.default_tz);
   applyCommissionMode();
 }
 
@@ -1093,7 +1147,7 @@ form.onsubmit = e => {
   submitting(form, async () => {
     const res = await api("/api/trips", { method: "POST", json: payload });
     if (isValidation(res)) {
-      const aboutCommission = res.body.detail.some(err => err.loc.at(-1) === "commission");
+      const aboutCommission = res.body.error.fields.some(err => err.field === "commission");
       if (aboutCommission && await syncProfile()) {
         applyCommissionMode();
         return toast("info", "Администратор изменил комиссию — проверьте и отправьте ещё раз");
@@ -1101,6 +1155,7 @@ form.onsubmit = e => {
       return showValidation(form, res);
     }
     if (res.status === 401) return;
+    if (errorCode(res) === "trip_overlap") return toast("err", "Пересекается с другой поездкой");
     if (res.status === 409) return toast("err", "Поездка с таким id уже есть, но с другими данными");
     if (!res.ok) return toast("err", `Ошибка сервера (${res.status})`);
 

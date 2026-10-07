@@ -25,7 +25,8 @@ DEMO_DRIVERS = [
     # (account, sample shifts file or None)
     (DriverCreate(email="demo@example.com", password="demo12345", name="Демо-водитель"), DEMO_SHIFTS),
     (DriverCreate(email="erlan@example.com", password="erlan12345", name="Ерлан Сейтжанов",
-                  car="Hyundai Accent, 777 AAA 02", default_commission_pct=15), None),
+                  car_model="Hyundai Accent", car_plate="777 AAA 02",
+                  default_commission_pct=15), None),
 ]
 
 

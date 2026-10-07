@@ -76,6 +76,17 @@ def get(conn: Connection, driver_id: int, trip_id: str, *,
     return _row_to_trip(row) if row else None
 
 
+def overlapping(conn: Connection, driver_id: int, start: datetime, end: datetime,
+                exclude_id: str) -> str | None:
+    """Id of another trip of the driver that overlaps [start, end), if any."""
+    row = conn.execute(
+        "SELECT id FROM trips WHERE driver_id = %s AND id <> %s"
+        " AND tstzrange(start_at, end_at, '[)') && tstzrange(%s, %s, '[)') LIMIT 1",
+        (driver_id, exclude_id, start, end),
+    ).fetchone()
+    return row["id"] if row else None
+
+
 def insert_if_absent(conn: Connection, driver_id: int, trip: Trip) -> bool:
     """INSERT ... ON CONFLICT DO NOTHING on (driver_id, id). True if the row was inserted.
 

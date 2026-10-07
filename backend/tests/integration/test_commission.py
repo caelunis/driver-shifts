@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.api import error, field_ctx
 from tests.factories import create_driver, day_shift, set_commission_pct
 from app.main import create_app
 
@@ -44,10 +45,8 @@ def test_different_commission_is_rejected(db, driver, driver_id):
     set_pct(db, driver_id, 15)
     r = driver.post("/api/trips", json={**TRIP, "commission": 100})
     assert r.status_code == 422
-    [err] = r.json()["detail"]
-    assert err["type"] == "commission_fixed"
-    assert err["loc"] == ["body", "commission"]
-    assert err["ctx"]["expected"] == 353
+    assert error(r) == ("commission", "commission_fixed")
+    assert field_ctx(r)["expected"] == 353
 
 
 def test_repeat_without_commission_is_not_a_duplicate(db, driver, driver_id):
@@ -62,7 +61,7 @@ def test_rounded_commission_reaching_amount_is_rejected(db, driver, driver_id):
     set_pct(db, driver_id, 50)
     r = driver.post("/api/trips", json={**TRIP, "amount": 1})  # 0.5 rounds up to 1 == amount
     assert r.status_code == 422
-    assert r.json()["detail"][0]["type"] == "commission_exceeds_amount"
+    assert error(r) == ("commission", "commission_exceeds_amount")
 
 
 def test_percent_change_does_not_touch_old_trips(db, driver, driver_id):
@@ -84,5 +83,4 @@ def test_manual_commission_without_percent(driver):
 def test_commission_required_without_percent(driver):
     r = driver.post("/api/trips", json=TRIP)
     assert r.status_code == 422
-    assert r.json()["detail"][0]["loc"] == ["body", "commission"]
-    assert r.json()["detail"][0]["type"] == "missing"
+    assert error(r) == ("commission", "missing")

@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from app.main import create_app
 from app.services import shifts as shifts_service
 from tests.conftest import NOW
+from tests.api import code, error
 from tests.factories import create_driver, day_shift
 
 TRIP = {"start": "2026-10-01T08:10:00+05:00", "end": "2026-10-01T08:32:00+05:00",
@@ -18,7 +19,7 @@ def app(db):
     return create_app(db)
 
 
-def logged_in(app, email, password="password123"):
+def logged_in(app, email, password="horse-battery-9"):
     c = TestClient(app)
     assert c.post("/api/auth/login", json={"email": email, "password": password}).status_code == 200
     return c
@@ -31,12 +32,6 @@ def driver(app, driver_id):
 
 def at(day_time: str) -> str:
     return f"2026-10-{day_time}:00+05:00"  # at("01T08:00") -> 2026-10-01T08:00:00+05:00
-
-
-def error(r) -> tuple[str, str]:
-    """(field, type) of a single 422 error."""
-    [e] = r.json()["detail"]
-    return e["loc"][-1], e["type"]
 
 
 # --- starting a shift ---
@@ -61,7 +56,7 @@ def test_only_one_open_shift(driver):
     driver.post("/api/shifts", json={})
     r = driver.post("/api/shifts", json={"start": at("03T11:00")})
     assert r.status_code == 409
-    assert r.json()["detail"]["code"] == "shift_already_open"
+    assert code(r) == "shift_already_open"
 
 
 def test_concurrent_starts_open_exactly_one_shift(db, driver_id):
@@ -90,7 +85,7 @@ def test_shifts_cannot_overlap(driver):
     driver.post("/api/shifts", json={"start": at("02T08:00"), "end": at("02T18:00")})
     r = driver.post("/api/shifts", json={"start": at("02T17:00"), "end": at("02T20:00")})
     assert r.status_code == 409
-    assert r.json()["detail"]["code"] == "shift_overlap"
+    assert code(r) == "shift_overlap"
     # Touching ends are fine: [08:00, 18:00) and [18:00, 20:00)
     assert driver.post("/api/shifts", json={"start": at("02T18:00"), "end": at("02T20:00")}).status_code == 201
 
@@ -131,7 +126,7 @@ def test_close_now_and_not_twice(driver):
     assert datetime.fromisoformat(r.json()["end"]) == NOW
     assert driver.get("/api/shifts/current").json() is None
     again = driver.post(f"/api/shifts/{shift['id']}/close", json={})
-    assert again.status_code == 409 and again.json()["detail"]["code"] == "shift_already_closed"
+    assert again.status_code == 409 and code(again) == "shift_already_closed"
 
 
 def test_cannot_close_before_last_trip(driver):
@@ -161,7 +156,7 @@ def test_forgotten_shift_can_always_be_closed(db, driver, driver_id):
 
 
 def test_close_another_drivers_shift_is_404(db, driver):
-    other = create_driver(db, "other@example.com", "password123")
+    other = create_driver(db, "other@example.com", "horse-battery-9")
     shift = shifts_service.start(db, other)
     assert driver.post(f"/api/shifts/{shift.id}/close", json={}).status_code == 404
     assert driver.get(f"/api/shifts/{shift.id}").status_code == 404
@@ -175,7 +170,7 @@ def test_trip_requires_a_shift(driver):
 
 
 def test_trip_in_unknown_or_foreign_shift(db, driver):
-    other = create_driver(db, "other@example.com", "password123")
+    other = create_driver(db, "other@example.com", "horse-battery-9")
     foreign = day_shift(db, other)
     for shift_id in (foreign, 999):
         r = driver.post("/api/trips", json={**TRIP, "shift_id": shift_id})
@@ -256,7 +251,7 @@ def test_open_shift_summary_runs_up_to_now(driver):
 # --- roles ---
 
 def test_admins_have_no_shifts_of_their_own(app, db):
-    create_driver(db, "admin@example.com", "password123", role="admin")
+    create_driver(db, "admin@example.com", "horse-battery-9", role="admin")
     admin = logged_in(app, "admin@example.com")
     assert admin.get("/api/shifts/current").status_code == 403
     assert admin.post("/api/shifts", json={}).status_code == 403
@@ -265,7 +260,7 @@ def test_admins_have_no_shifts_of_their_own(app, db):
 def test_admin_reads_driver_shifts(app, db, driver, driver_id):
     shift = day_shift(db, driver_id)
     driver.post("/api/trips", json={**TRIP, "shift_id": shift})
-    create_driver(db, "admin@example.com", "password123", role="admin")
+    create_driver(db, "admin@example.com", "horse-battery-9", role="admin")
     admin = logged_in(app, "admin@example.com")
     base = f"/api/admin/drivers/{driver_id}/shifts"
     assert [s["id"] for s in admin.get(base, params={"date": "2026-10-01"}).json()] == [shift]

@@ -1,14 +1,14 @@
 from datetime import date, datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 from pydantic_core import PydanticCustomError
 
-from .common import AwareDatetime
+from .common import AwareDatetime, StrictModel
 from .trips import Totals, Trip
 
 
-class ShiftStartIn(BaseModel):
+class ShiftStartIn(StrictModel):
     """Start a shift now (no fields), at a given time, or enter a past shift (start + end)."""
 
     start: Optional[AwareDatetime] = None
@@ -28,14 +28,12 @@ class ShiftStartIn(BaseModel):
         return v
 
 
-class ShiftCloseIn(BaseModel):
+class ShiftCloseIn(StrictModel):
     end: Optional[AwareDatetime] = None  # None = now
 
 
-class ShiftPatch(BaseModel):
+class ShiftPatch(StrictModel):
     """Changes to a shift; omitted fields keep their values. `end: null` reopens it."""
-
-    model_config = ConfigDict(extra="forbid")
 
     start: Optional[AwareDatetime] = None
     end: Optional[AwareDatetime] = None

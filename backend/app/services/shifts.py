@@ -9,7 +9,7 @@ from app.core.errors import Conflict, DomainValidationError, NotFound
 from app.repositories import drivers as drivers_repo
 from app.repositories import shifts as shifts_repo
 from app.repositories import trips as trips_repo
-from app.schemas.common import offset_tz
+from app.schemas.common import zone
 from app.schemas.shifts import Shift, ShiftDetail
 from app.services.summary import shift_summary
 
@@ -66,7 +66,7 @@ def start(pool: ConnectionPool, driver_id: int, start_at: datetime | None = None
     """Start a shift now, at `start_at`, or enter a finished past shift (`start_at` + `end_at`)."""
     with pool.connection() as conn:
         if start_at is None:
-            tz = offset_tz(drivers_repo.get_profile(conn, driver_id).default_tz)
+            tz = zone(drivers_repo.get_profile(conn, driver_id).default_tz)
             start_at = clock.now().astimezone(tz)
         check_not_in_future("start", start_at)
         if not by_admin:

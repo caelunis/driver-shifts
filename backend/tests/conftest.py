@@ -55,7 +55,7 @@ def db(pool):
 @pytest.fixture
 def driver_id(db):
     from tests.factories import create_driver
-    return create_driver(db, "driver@example.com", "password123", name="Test driver")
+    return create_driver(db, "driver@example.com", "horse-battery-9", name="Test driver")
 
 
 # Tests use dates around the start of October 2026; "now" is pinned right after them,

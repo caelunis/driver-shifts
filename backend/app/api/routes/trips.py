@@ -1,10 +1,10 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Response, status
 from psycopg_pool import ConnectionPool
 
 from app.api.deps import get_pool, require_driver
-from app.core.errors import TripConflict
+from app.core.errors import Conflict, TripConflict
 from app.schemas.trips import DayInfo, DaySummary, Trip, TripIn, TripPatch
 from app.services import trips
 
@@ -34,13 +34,9 @@ def add_trip(trip_in: TripIn, response: Response, pool: ConnectionPool = Depends
     try:
         trip, created = trips.add(pool, driver_id, trip_in)
     except TripConflict as e:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "message": f"Trip with id={e.existing.id} already exists with different data",
-                "existing": e.existing.model_dump(mode="json"),
-            },
-        )
+        raise Conflict("trip_conflict",
+                       f"Trip with id={e.existing.id} already exists with different data",
+                       existing=e.existing.model_dump(mode="json"))
     if not created:
         response.status_code = status.HTTP_200_OK
     return trip

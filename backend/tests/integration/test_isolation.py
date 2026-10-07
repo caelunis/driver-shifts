@@ -14,7 +14,7 @@ def app(db):
     return create_app(db)
 
 
-def logged_in(app, db, email, password="password123"):
+def logged_in(app, db, email, password="horse-battery-9"):
     driver_id = create_driver(db, email, password, name=email)
     c = TestClient(app)
     assert c.post("/api/auth/login", json={"email": email, "password": password}).status_code == 200
@@ -70,6 +70,6 @@ def test_trip_endpoints_require_auth(app, db, method, path, kwargs):
 
 
 def test_drivers_cannot_delete_their_own_account(alice):
-    r = alice.request("DELETE", "/api/me", json={"password": "password123"})
+    r = alice.request("DELETE", "/api/me", json={"password": "horse-battery-9"})
     assert r.status_code == 405
     assert alice.get("/api/me").status_code == 200

@@ -40,7 +40,7 @@ def test_concurrent_inserts_create_exactly_one_row(db, driver_id, night_shift):
 
 
 def test_same_id_for_different_drivers_is_not_a_conflict(db, driver_id, night_shift):
-    other = create_driver(db, "other@example.com", "password123")
+    other = create_driver(db, "other@example.com", "horse-battery-9")
     other_shift = day_shift(db, other, "2026-10-02", start="02:00", end="10:00")
     _, created_a = trips.add(db, driver_id, night(night_shift))
     _, created_b = trips.add(db, other, night(other_shift, amount=9999))
@@ -67,7 +67,7 @@ def test_database_rejects_commission_equal_to_amount(db, driver_id, night_shift)
 
 
 def test_database_rejects_a_trip_in_another_drivers_shift(db, driver_id):
-    other = create_driver(db, "other@example.com", "password123")
+    other = create_driver(db, "other@example.com", "horse-battery-9")
     foreign_shift = day_shift(db, other, "2026-10-02", start="02:00", end="10:00")
     trip = night(foreign_shift).to_trip()
     with pytest.raises(psycopg.errors.ForeignKeyViolation):

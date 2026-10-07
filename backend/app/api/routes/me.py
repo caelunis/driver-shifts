@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends
 from fastapi.exceptions import RequestValidationError
 from psycopg_pool import ConnectionPool
 from pydantic import ValidationError
 
 from app.api.deps import current_account, get_pool, require_driver
+from app.core.errors import ApiError
 from app.schemas.accounts import Profile, SelfProfileUpdate
 from app.services import accounts
 
@@ -23,8 +24,8 @@ def update_me(body: dict = Body(...), pool: ConnectionPool = Depends(get_pool),
               driver_id: int = Depends(require_driver)):
     # Explicit 403 rather than silently ignoring fields the driver may not change
     if forbidden := sorted(set(body) - DRIVER_EDITABLE):
-        raise HTTPException(status.HTTP_403_FORBIDDEN,
-                            {"message": "These fields are managed by the admin", "fields": forbidden})
+        raise ApiError("admin_managed_fields", "These fields are managed by the admin",
+                       status=403, fields=forbidden)
     try:
         changes = SelfProfileUpdate.model_validate(body)
     except ValidationError as e:
