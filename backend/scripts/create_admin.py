@@ -12,6 +12,7 @@ import asyncio
 import getpass
 import sys
 
+from app.cache.store import Cache
 from app.core.config import get_settings
 from app.core.constants import PASSWORD_MIN_LENGTH
 from app.core.logging import configure_logging
@@ -45,7 +46,7 @@ def main() -> int:
 async def _create(email: str, password: str) -> bool:
     db = await Database.connect(get_settings().database_url())
     try:
-        return await AccountService(db).ensure_admin(email, password)
+        return await AccountService(db, Cache.in_process()).ensure_admin(email, password)
     finally:
         await db.close()
 

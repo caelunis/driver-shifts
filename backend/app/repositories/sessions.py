@@ -15,14 +15,14 @@ class SessionRepository(Repository):
             (token_hash, user_id, expires_at),
         )
 
-    async def find(self, token_hash: str) -> tuple[Principal, bool] | None:
-        """The session's account and whether the session is still alive."""
+    async def find(self, token_hash: str) -> tuple[Principal, datetime] | None:
+        """The session's account and when the session expires."""
         row = await self._one(
-            "SELECT u.id, u.role, s.expires_at > now() AS alive"
+            "SELECT u.id, u.role, s.expires_at"
             " FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = %s",
             (token_hash,),
         )
-        return (Principal(row["id"], Role(row["role"])), bool(row["alive"])) if row else None
+        return (Principal(row["id"], Role(row["role"])), row["expires_at"]) if row else None
 
     async def delete(self, token_hash: str) -> None:
         await self._run("DELETE FROM sessions WHERE token_hash = %s", (token_hash,))

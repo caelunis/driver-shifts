@@ -6,6 +6,7 @@
 
 import asyncio
 
+from app.cache.store import Cache
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.database import Database
@@ -20,7 +21,9 @@ async def main() -> None:
         if settings.seed_demo:
             print("Demo accounts created" if await seed(db) else "Accounts exist; demo seeding skipped")
         if settings.admin_email and settings.admin_password:
-            created = await AccountService(db).ensure_admin(settings.admin_email, settings.admin_password)
+            created = await AccountService(db, Cache.in_process()).ensure_admin(
+                settings.admin_email, settings.admin_password
+            )
             print(f"Admin {settings.admin_email} {'created' if created else 'already exists'}")
     finally:
         await db.close()

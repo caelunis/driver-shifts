@@ -1,17 +1,34 @@
 """Exception handlers that render every error in the format described in app.core.errors."""
 
+import logging
 from collections.abc import Mapping
 from http import HTTPStatus
 from typing import Any
 
 import orjson
+import psycopg
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from psycopg_pool import PoolTimeout
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.core.constants import DB_RETRY_AFTER
 from app.core.enums import ErrorCode
 from app.core.errors import ApiError, DomainValidationError
+from app.db.errors import is_db_unavailable
+
+log = logging.getLogger(__name__)
+
+
+def db_unavailable_response() -> "ErrorJSONResponse":
+    return error_response(
+        status.HTTP_503_SERVICE_UNAVAILABLE,
+        ErrorCode.DB_UNAVAILABLE,
+        "The database is unavailable, try again later",
+        ctx={"retry_after": DB_RETRY_AFTER},
+        headers={"Retry-After": str(DB_RETRY_AFTER)},
+    )
 
 
 class ErrorJSONResponse(JSONResponse):
@@ -84,6 +101,15 @@ def install(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
     async def api_error(request: Request, exc: ApiError) -> ErrorJSONResponse:
         return error_response(exc.status, exc.code, exc.message, ctx=_json_safe(exc.ctx), headers=exc.headers)
+
+    async def database_error(request: Request, exc: Exception) -> ErrorJSONResponse:
+        if not is_db_unavailable(exc):
+            raise exc  # a deadlock or the like: a bug, logged as such with the 500
+        log.warning("db_unavailable", extra={"error": type(exc).__name__})
+        return db_unavailable_response()
+
+    app.add_exception_handler(psycopg.OperationalError, database_error)
+    app.add_exception_handler(PoolTimeout, database_error)
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request: Request, exc: StarletteHTTPException) -> ErrorJSONResponse:

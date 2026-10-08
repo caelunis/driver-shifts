@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from app.cache.store import Cache
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.database import Database
@@ -47,7 +48,7 @@ def _times(item: dict[str, Any]) -> tuple[datetime, datetime]:
 
 
 async def seed(db: Database) -> bool:
-    accounts, shifts, trips = AccountService(db), ShiftService(db), TripService(db)
+    accounts, shifts, trips = AccountService(db, Cache.in_process()), ShiftService(db), TripService(db)
     if await accounts.any_accounts():
         return False
     await accounts.ensure_admin(*DEMO_ADMIN)

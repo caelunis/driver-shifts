@@ -2,16 +2,21 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from redis.asyncio import Redis
 
 from app.api import errors
 from app.api.guards import AuthMiddleware, ThrottleMiddleware
 from app.api.middleware import RequestContextMiddleware
+from app.api.response_cache import ResponseCacheMiddleware
 from app.api.routers import auth, health, me, shifts, trips
 from app.api.routers.admin import drivers as admin_drivers
+from app.cache.guard import RedisGuard
+from app.cache.ratelimit import ResilientRateLimitStore
+from app.cache.store import Cache
 from app.core.config import get_settings
-from app.core.constants import API_V1, API_VERSION
+from app.core.constants import API_V1, API_VERSION, REDIS_TIMEOUT
 from app.core.logging import configure_logging
-from app.core.ratelimit import LoginLimiter, MemoryRateLimitStore
+from app.core.ratelimit import LoginLimiter
 from app.db.database import Database
 
 API_DESCRIPTION = """
@@ -39,8 +44,9 @@ OPENAPI_TAGS = [
 ]
 
 
-def create_app(db: Database | None = None) -> FastAPI:
-    """Pass a database in tests; otherwise the app connects to the POSTGRES_* database on startup.
+def create_app(db: Database | None = None, redis: Redis | None = None) -> FastAPI:
+    """Pass a database (and optionally Redis) in tests; otherwise the app connects to the
+    POSTGRES_* database and to REDIS_URL, if set, on startup.
 
     The app never creates or changes the schema: run `dbmate up` first.
     """
@@ -55,6 +61,8 @@ def create_app(db: Database | None = None) -> FastAPI:
             yield
         finally:
             await app.state.db.close()
+            if own_redis is not None:
+                await own_redis.aclose()
 
     # Everything under /api: the frontend's nginx proxies only that prefix
     app = FastAPI(
@@ -69,13 +77,23 @@ def create_app(db: Database | None = None) -> FastAPI:
     )
     if db is not None:
         app.state.db = db
-    # In-process counters: right for a single instance (one granian worker)
-    rate_store = MemoryRateLimitStore()
+    # Redis for the cache and the rate-limit counters, falling back to this process's
+    # memory whenever Redis fails (or when there is none)
+    own_redis = None
+    if redis is None and db is None and (url := get_settings().redis_url):
+        own_redis = redis = Redis.from_url(
+            url, socket_timeout=REDIS_TIMEOUT, socket_connect_timeout=REDIS_TIMEOUT
+        )
+    guard = RedisGuard(enabled=redis is not None)
+    app.state.cache = cache = Cache(redis, guard)
+    rate_store = ResilientRateLimitStore(redis, guard)
     app.state.login_limiter = LoginLimiter(rate_store)
 
     errors.install(app)
     # Added inner first: a request passes RequestContext (id, access log), then
-    # Throttle (cheap, before any database work), then Auth, then the routers
+    # Throttle (cheap, before any database work), then Auth, then the response cache,
+    # then the routers
+    app.add_middleware(ResponseCacheMiddleware, cache=cache)
     app.add_middleware(AuthMiddleware)
     app.add_middleware(ThrottleMiddleware, store=rate_store)
     app.add_middleware(RequestContextMiddleware)

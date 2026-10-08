@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from psycopg.rows import DictRow, dict_row
 from pydantic import ValidationError
 
+from app.cache.store import Cache
 from app.core import clock
 from app.core.config import Settings, get_settings
 from app.db.database import Database
@@ -91,10 +92,13 @@ class TestDb:
 
     def __init__(self, database: Database, portal: BlockingPortal) -> None:
         self.database, self.portal = database, portal
+        self.cache = Cache.in_process()
 
     def service(self, cls: type) -> Any:
         """e.g. db.service(ShiftService).start(driver_id)"""
-        return SyncService(cls(self.database), self.portal)
+        needs_cache = "cache" in inspect.signature(cls.__init__).parameters
+        target = cls(self.database, self.cache) if needs_cache else cls(self.database)
+        return SyncService(target, self.portal)
 
     def run(self, fn: Callable[..., Awaitable[Any]], *args: Any, **kwargs: Any) -> Any:
         """Run a coroutine function on the shared loop, e.g. with a unit of work."""

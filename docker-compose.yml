@@ -29,6 +29,21 @@ services:
       timeout: 3s
       retries: 20
 
+  # Cache and shared rate-limit counters. The app keeps working without it
+  # (in-process fallback), so nothing waits for it to be healthy.
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb",
+              "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      # For local development and tests only; bound to localhost
+      - "127.0.0.1:${REDIS_PUBLISHED_PORT:-6380}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   # Applies backend/db/migrations; the app itself never changes the schema
   migrate:
     image: ghcr.io/amacneil/dbmate:2.36
@@ -63,6 +78,7 @@ services:
     environment:
       <<: *app-database-env
       COOKIE_SECURE: ${COOKIE_SECURE:-0}
+      REDIS_URL: redis://redis:6379/0
       LOG_FORMAT: json
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     # Not published: reached through `web`, which serves the frontend on the same origin
@@ -71,6 +87,8 @@ services:
     depends_on:
       bootstrap:
         condition: service_completed_successfully
+      redis:
+        condition: service_started
     restart: unless-stopped
 
   # The React app (frontend/), served by nginx, which also proxies /api to `app`

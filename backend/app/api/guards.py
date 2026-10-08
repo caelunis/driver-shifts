@@ -11,7 +11,7 @@ from fastapi import status as http
 from starlette.requests import HTTPConnection
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from app.api.errors import error_response
+from app.api.errors import db_unavailable_response, error_response
 from app.api.middleware import client_address
 from app.core.constants import (
     API_PREFIX,
@@ -26,6 +26,7 @@ from app.core.constants import (
 from app.core.enums import ErrorCode
 from app.core.logging import user_id_var
 from app.core.ratelimit import RateLimitStore
+from app.db.errors import is_db_unavailable
 from app.services.auth import AuthService
 
 log = logging.getLogger(__name__)
@@ -53,7 +54,15 @@ class AuthMiddleware:
         token = HTTPConnection(scope).cookies.get(SESSION_COOKIE)
         principal = None
         if token:
-            principal = await AuthService(scope["app"].state.db).principal(token)
+            state = scope["app"].state
+            try:
+                principal = await AuthService(state.db, state.cache).principal(token)
+            except Exception as e:
+                if not is_db_unavailable(e):
+                    raise
+                # Neither the database nor the cache knows this session right now
+                await db_unavailable_response()(scope, receive, send)
+                return
         if principal is not None:
             scope.setdefault("state", {})["principal"] = principal
             user_id_var.set(principal.id)  # every log record of this request names the account

@@ -78,4 +78,24 @@ PLATE_LOOKALIKES = ("АВЕКМНОРСТУХ", "ABEKMHOPCTYX")
 DB_POOL_MIN_SIZE = 1
 DB_POOL_MAX_SIZE = 10
 DB_CONNECT_TIMEOUT = 10.0  # seconds to wait for the database on startup
+# Seconds a request waits for a pooled connection. Short: with the database down the
+# request should fall back to the cache quickly instead of hanging
+DB_ACQUIRE_TIMEOUT = 3.0
+DB_RETRY_AFTER = 30  # seconds, the Retry-After of a 503 while the database is down
 HEALTH_DB_TIMEOUT = 2.0
+
+# --- cache ---
+# A cached response is served as is for this long; afterwards it is refreshed. Writes
+# through the API invalidate it at once, so this bounds only changes made outside the
+# app and the "up to now" numbers of an open shift.
+CACHE_FRESH_TTL = timedelta(seconds=30)
+# How long a copy is kept to answer reads while the database is down
+CACHE_STALE_TTL = timedelta(hours=24)
+# The in-process fallback: shorter-lived (each app instance has its own) and bounded
+CACHE_MEMORY_TTL_CAP = timedelta(seconds=30)
+CACHE_MEMORY_MAX_ENTRIES = 10_000
+# Sessions resolved from the cache before asking the database again
+SESSION_CACHE_TTL = timedelta(seconds=60)
+# Redis: fail fast, and after a failure use the fallback for a while before retrying
+REDIS_TIMEOUT = 0.3  # seconds
+REDIS_RETRY_AFTER = timedelta(seconds=10)

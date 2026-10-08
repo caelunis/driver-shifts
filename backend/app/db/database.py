@@ -7,7 +7,7 @@ from psycopg import AsyncConnection
 from psycopg.rows import DictRow, dict_row
 from psycopg_pool import AsyncConnectionPool
 
-from app.core.constants import DB_CONNECT_TIMEOUT, DB_POOL_MAX_SIZE, DB_POOL_MIN_SIZE
+from app.core.constants import DB_ACQUIRE_TIMEOUT, DB_CONNECT_TIMEOUT, DB_POOL_MAX_SIZE, DB_POOL_MIN_SIZE
 from app.repositories.drivers import DriverRepository
 from app.repositories.sessions import SessionRepository
 from app.repositories.shifts import ShiftRepository
@@ -44,6 +44,7 @@ class Database:
             min_size=DB_POOL_MIN_SIZE,
             max_size=DB_POOL_MAX_SIZE,
             open=False,
+            timeout=DB_ACQUIRE_TIMEOUT,
             connection_class=Connection,
             kwargs={"row_factory": dict_row},
         )

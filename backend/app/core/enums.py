@@ -36,7 +36,7 @@ class ErrorCode(StrEnum):
     UNSUPPORTED_MEDIA_TYPE = "unsupported_media_type"
     NOT_FOUND = "not_found"
     DRIVER_NOT_FOUND = "driver_not_found"
-    DB_UNAVAILABLE = "db_unavailable"
+    DB_UNAVAILABLE = "db_unavailable"  # 503: reads may still come from the cache
     INTERNAL_ERROR = "internal_error"
 
     # conflicts with the current state

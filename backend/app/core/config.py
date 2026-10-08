@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     # Set COOKIE_SECURE=1 behind HTTPS; plain-HTTP localhost needs it off
     cookie_secure: bool = False
 
+    # Cache and shared rate-limit counters; empty: in-process only (one instance)
+    redis_url: str = ""
+
     # Used only by scripts/bootstrap.py, never by the running app
     seed_demo: bool = False
     admin_email: str = ""

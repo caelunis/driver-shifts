@@ -9,6 +9,7 @@ from uuid import UUID
 
 from pydantic_core import PydanticCustomError
 
+from app.cache.store import Cache
 from app.core.enums import Role
 from app.core.errors import DomainValidationError, NotFoundError
 from app.core.logging import mask_email
@@ -17,6 +18,7 @@ from app.db.database import Database
 from app.domain.models import AccountProfile, DriverOverview
 from app.schemas.accounts import DriverCreate
 from app.schemas.common import check_password
+from app.services.auth import session_version
 
 log = logging.getLogger(__name__)
 
@@ -27,8 +29,9 @@ def _percent(value: float | None) -> Decimal | None:
 
 
 class AccountService:
-    def __init__(self, db: Database) -> None:
+    def __init__(self, db: Database, cache: Cache) -> None:
         self._db = db
+        self._cache = cache
 
     # --- any account ---
 
@@ -86,6 +89,8 @@ class AccountService:
                 await uow.users.set_password_hash(driver_id, new_hash)
                 await uow.sessions.delete_all_of(driver_id)
             driver = await uow.drivers.with_totals(driver_id)
+        if new_hash is not None:
+            await self._cache.bump(session_version(driver_id))  # cached sessions end too
         if driver is None:
             raise NotFoundError()
         # Field names only: values such as the password never reach the log
@@ -102,6 +107,7 @@ class AccountService:
     async def delete_driver(self, driver_id: UUID) -> bool:
         async with self._db.unit_of_work() as uow:
             deleted = await uow.users.delete_driver(driver_id)
+        await self._cache.bump(session_version(driver_id))
         log.info("driver_deleted", extra={"driver_id": driver_id, "deleted": deleted})
         return deleted
 

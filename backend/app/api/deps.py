@@ -10,6 +10,7 @@ from uuid import UUID
 from fastapi import Cookie, Depends, Request, Response, Security, status
 from fastapi.security import APIKeyCookie
 
+from app.cache.store import Cache
 from app.core.config import get_settings
 from app.core.constants import SESSION_COOKIE, SESSION_TTL
 from app.core.enums import ErrorCode, Role
@@ -28,24 +29,30 @@ def get_db(request: Request) -> Database:
     return db
 
 
+def get_cache(request: Request) -> Cache:
+    cache: Cache = request.app.state.cache
+    return cache
+
+
 def get_login_limiter(request: Request) -> LoginLimiter:
     limiter: LoginLimiter = request.app.state.login_limiter
     return limiter
 
 
 DbDep = Annotated[Database, Depends(get_db)]
+CacheDep = Annotated[Cache, Depends(get_cache)]
 LoginLimiterDep = Annotated[LoginLimiter, Depends(get_login_limiter)]
 
 
 # --- services: built per request on the shared pool; they hold no state of their own ---
 
 
-def get_auth_service(db: DbDep) -> AuthService:
-    return AuthService(db)
+def get_auth_service(db: DbDep, cache: CacheDep) -> AuthService:
+    return AuthService(db, cache)
 
 
-def get_account_service(db: DbDep) -> AccountService:
-    return AccountService(db)
+def get_account_service(db: DbDep, cache: CacheDep) -> AccountService:
+    return AccountService(db, cache)
 
 
 def get_shift_service(db: DbDep) -> ShiftService:
