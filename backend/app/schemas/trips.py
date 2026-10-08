@@ -1,30 +1,25 @@
 import hashlib
-from datetime import date, datetime, timedelta, timezone
-from typing import Literal, Optional
+from datetime import UTC, date, datetime, timedelta
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 from pydantic_core import PydanticCustomError
 
-from .common import AwareDatetime, StrictModel
-
-Payment = Literal["cash", "card"]
-
-MAX_AMOUNT = 500_000  # KZT; a typo guard, far above any real fare
-MIN_DURATION = timedelta(minutes=1)
-MAX_DURATION = timedelta(hours=6)
+from app.core.constants import MAX_FARE, MAX_TRIP_DURATION, MIN_TRIP_DURATION, TRIP_ID_MAX_LENGTH
+from app.core.enums import ErrorCode, PaymentMethod
+from app.schemas.common import AwareDatetime, StrictModel
 
 
 class TripIn(StrictModel):
     """Trip as sent by a client. The id is optional."""
 
-    id: Optional[str] = Field(default=None, min_length=1, max_length=64)
+    id: str | None = Field(default=None, min_length=1, max_length=TRIP_ID_MAX_LENGTH)
     shift_id: int = Field(gt=0)
     start: AwareDatetime
     end: AwareDatetime
-    amount: int = Field(gt=0, le=MAX_AMOUNT, description="Trip amount, KZT")
-    payment: Payment
+    amount: int = Field(gt=0, le=MAX_FARE, description="Trip amount, KZT")
+    payment: PaymentMethod
     # Omitted when the admin set a commission percent for the driver: the server computes it
-    commission: Optional[int] = Field(default=None, ge=0, description="Commission, KZT")
+    commission: int | None = Field(default=None, ge=0, description="Commission, KZT")
 
     # Cross-field checks are field validators rather than one model validator:
     # a model validator only runs when every field is valid, so the client would
@@ -38,21 +33,24 @@ class TripIn(StrictModel):
         if start is None:
             return v
         if v <= start:
-            raise PydanticCustomError("end_before_start", "End must be later than start")
-        if v - start < MIN_DURATION:
-            raise PydanticCustomError("trip_too_short", "A trip lasts at least a minute")
-        if v - start > MAX_DURATION:
-            raise PydanticCustomError("trip_too_long", "A trip lasts at most 6 hours",
-                                      {"hours": 6})
+            raise PydanticCustomError(ErrorCode.END_BEFORE_START, "End must be later than start")
+        if v - start < MIN_TRIP_DURATION:
+            raise PydanticCustomError(ErrorCode.TRIP_TOO_SHORT, "A trip lasts at least a minute")
+        if v - start > MAX_TRIP_DURATION:
+            raise PydanticCustomError(
+                ErrorCode.TRIP_TOO_LONG,
+                "A trip lasts at most {hours} hours",
+                {"hours": MAX_TRIP_DURATION // timedelta(hours=1)},
+            )
         return v
 
     @field_validator("commission")
     @classmethod
-    def commission_within_amount(cls, v: Optional[int], info: ValidationInfo) -> Optional[int]:
+    def commission_within_amount(cls, v: int | None, info: ValidationInfo) -> int | None:
         amount = info.data.get("amount")
         if v is not None and amount is not None and v >= amount:
             raise PydanticCustomError(
-                "commission_exceeds_amount", "Commission must be less than the trip amount"
+                ErrorCode.COMMISSION_EXCEEDS_AMOUNT, "Commission must be less than the trip amount"
             )
         return v
 
@@ -62,14 +60,16 @@ class TripIn(StrictModel):
         Times are normalized to UTC so the same trip written with a different
         offset notation yields the same key.
         """
-        raw = "|".join([
-            str(self.shift_id),
-            self.start.astimezone(timezone.utc).isoformat(),
-            self.end.astimezone(timezone.utc).isoformat(),
-            str(self.amount),
-            self.payment,
-            str(self.commission),
-        ])
+        raw = "|".join(
+            [
+                str(self.shift_id),
+                self.start.astimezone(UTC).isoformat(),
+                self.end.astimezone(UTC).isoformat(),
+                str(self.amount),
+                self.payment,
+                str(self.commission),
+            ]
+        )
         return "auto-" + hashlib.sha256(raw.encode()).hexdigest()[:16]
 
     def to_trip(self) -> "Trip":
@@ -81,12 +81,12 @@ class TripIn(StrictModel):
 class TripPatch(StrictModel):
     """Changes to a stored trip; omitted fields keep their values. The id never changes."""
 
-    shift_id: Optional[int] = Field(default=None, gt=0)
-    start: Optional[AwareDatetime] = None
-    end: Optional[AwareDatetime] = None
-    amount: Optional[int] = Field(default=None, gt=0, le=MAX_AMOUNT)
-    payment: Optional[Payment] = None
-    commission: Optional[int] = Field(default=None, ge=0)
+    shift_id: int | None = Field(default=None, gt=0)
+    start: AwareDatetime | None = None
+    end: AwareDatetime | None = None
+    amount: int | None = Field(default=None, gt=0, le=MAX_FARE)
+    payment: PaymentMethod | None = None
+    commission: int | None = Field(default=None, ge=0)
 
     # Validators run only on fields the client sent, so this rejects an explicit null
     # without making the field required. Cross-field rules are checked by the service
@@ -95,7 +95,7 @@ class TripPatch(StrictModel):
     @classmethod
     def not_null(cls, v):
         if v is None:
-            raise PydanticCustomError("null_not_allowed", "Field cannot be null")
+            raise PydanticCustomError(ErrorCode.NULL_NOT_ALLOWED, "Field cannot be null")
         return v
 
 
@@ -103,7 +103,7 @@ class Trip(TripIn):
     id: str
     commission: int  # always known once the trip is stored
     # The percent the commission was computed with; None if it was entered by hand
-    commission_pct: Optional[float] = None
+    commission_pct: float | None = None
 
     def same_content(self, other: "Trip") -> bool:
         # Aware datetimes compare by instant, not by how the offset is written

@@ -1,6 +1,6 @@
-import type { DaySummary } from "../../shared/api/types";
-import { formatMoney } from "../../shared/lib/money";
-import { tripsText } from "../../shared/lib/plural";
+import type { DaySummary } from "@/shared/api/types";
+import { formatMoney } from "@/shared/lib/money";
+import { tripsText } from "@/shared/lib/plural";
 
 export function SummaryCards({ s }: { s: DaySummary }) {
   const cards: [string, string, string?][] = [

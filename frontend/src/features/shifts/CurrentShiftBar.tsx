@@ -2,16 +2,16 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router";
 
-import { api } from "../../shared/api/client";
-import { errorMessage } from "../../shared/api/errors";
-import type { Shift } from "../../shared/api/types";
-import { formatMoney } from "../../shared/lib/money";
-import { tripsText } from "../../shared/lib/plural";
-import { formatDateTime, formatDuration, isoDay } from "../../shared/lib/time";
-import { useToast } from "../../shared/ui/Toast";
-import { invalidateDiary, type DiaryScope } from "../diary/scope";
-import { DAY_MS, useCurrentShift } from "./api";
-import { ShiftDialog } from "./ShiftDialog";
+import { api } from "@/shared/api/client";
+import { errorMessage } from "@/shared/api/errors";
+import type { Shift } from "@/shared/api/types";
+import { formatMoney } from "@/shared/lib/money";
+import { tripsText } from "@/shared/lib/plural";
+import { formatDateTime, formatDuration, isoDay } from "@/shared/lib/time";
+import { useToast } from "@/shared/ui/Toast";
+import { invalidateDiary, type DiaryScope } from "@/features/diary/scope";
+import { DAY_MS, useCurrentShift } from "@/features/shifts/api";
+import { ShiftDialog } from "@/features/shifts/ShiftDialog";
 
 interface Props {
   scope: DiaryScope;

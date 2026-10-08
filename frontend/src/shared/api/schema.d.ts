@@ -445,11 +445,7 @@ export interface components {
             id: number;
             /** Email */
             email: string;
-            /**
-             * Role
-             * @enum {string}
-             */
-            role: "driver" | "admin";
+            role: components["schemas"]["Role"];
             /** Name */
             name: string;
             /** Car Model */
@@ -521,6 +517,11 @@ export interface components {
             amount: number;
         };
         /**
+         * PaymentMethod
+         * @enum {string}
+         */
+        PaymentMethod: "cash" | "card";
+        /**
          * Profile
          * @description The logged-in account. Driver fields are None for admins: an admin is a
          *     user without a driver profile.
@@ -530,11 +531,7 @@ export interface components {
             id: number;
             /** Email */
             email: string;
-            /**
-             * Role
-             * @enum {string}
-             */
-            role: "driver" | "admin";
+            role: components["schemas"]["Role"];
             /** Name */
             name?: string | null;
             /** Car Model */
@@ -546,6 +543,11 @@ export interface components {
             /** Default Commission Pct */
             default_commission_pct?: number | null;
         };
+        /**
+         * Role
+         * @enum {string}
+         */
+        Role: "driver" | "admin";
         /** Shift */
         Shift: {
             /** Id */
@@ -557,11 +559,7 @@ export interface components {
             start: string;
             /** End */
             end: string | null;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "open" | "closed";
+            status: components["schemas"]["ShiftStatus"];
             /**
              * Local Day
              * Format: date
@@ -587,11 +585,7 @@ export interface components {
             start: string;
             /** End */
             end: string | null;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "open" | "closed";
+            status: components["schemas"]["ShiftStatus"];
             /**
              * Local Day
              * Format: date
@@ -630,6 +624,11 @@ export interface components {
              */
             note: string;
         };
+        /**
+         * ShiftStatus
+         * @enum {string}
+         */
+        ShiftStatus: "open" | "closed";
         /** ShiftSummary */
         ShiftSummary: {
             /** Count */
@@ -668,11 +667,7 @@ export interface components {
              * @description Trip amount, KZT
              */
             amount: number;
-            /**
-             * Payment
-             * @enum {string}
-             */
-            payment: "cash" | "card";
+            payment: components["schemas"]["PaymentMethod"];
             /** Commission */
             commission: number;
             /** Commission Pct */
@@ -702,11 +697,7 @@ export interface components {
              * @description Trip amount, KZT
              */
             amount: number;
-            /**
-             * Payment
-             * @enum {string}
-             */
-            payment: "cash" | "card";
+            payment: components["schemas"]["PaymentMethod"];
             /**
              * Commission
              * @description Commission, KZT
@@ -726,8 +717,7 @@ export interface components {
             end?: string | null;
             /** Amount */
             amount?: number | null;
-            /** Payment */
-            payment?: ("cash" | "card") | null;
+            payment?: components["schemas"]["PaymentMethod"] | null;
             /** Commission */
             commission?: number | null;
         };

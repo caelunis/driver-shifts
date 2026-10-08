@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
-import { api, ApiError, get } from "../../shared/api/client";
-import type { Profile } from "../../shared/api/types";
+import { api, ApiError, get } from "@/shared/api/client";
+import type { Profile } from "@/shared/api/types";
 
 export const meKey = ["me"] as const;
 

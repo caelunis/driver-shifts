@@ -1,8 +1,10 @@
 """SQL for trips. Every function takes a connection; transactions belong to the caller."""
+
 from datetime import date, datetime, timedelta, timezone
 
 from psycopg import Connection
 
+from app.core.enums import PaymentMethod
 from app.schemas.trips import DayInfo, Trip
 
 
@@ -24,15 +26,16 @@ def _row_to_trip(row: dict) -> Trip:
         start=restore_offset(row["start_at"], row["start_offset_min"]),
         end=restore_offset(row["end_at"], row["end_offset_min"]),
         amount=row["amount"],
-        payment=row["payment"],
+        payment=PaymentMethod(row["payment"]),
         commission=row["commission"],
-        commission_pct=(float(row["commission_pct"])
-                        if row["commission_pct"] is not None else None),
+        commission_pct=(float(row["commission_pct"]) if row["commission_pct"] is not None else None),
     )
 
 
-_COLUMNS = ("t.id, t.shift_id, t.start_at, t.end_at, t.start_offset_min, t.end_offset_min,"
-            " t.amount, t.payment, t.commission, t.commission_pct")
+_COLUMNS = (
+    "t.id, t.shift_id, t.start_at, t.end_at, t.start_offset_min, t.end_offset_min,"
+    " t.amount, t.payment, t.commission, t.commission_pct"
+)
 
 
 def for_day(conn: Connection, driver_id: int, day: date) -> list[Trip]:
@@ -66,8 +69,7 @@ def days(conn: Connection, driver_id: int) -> list[DayInfo]:
     return [DayInfo(**r) for r in rows]
 
 
-def get(conn: Connection, driver_id: int, trip_id: str, *,
-        for_update: bool = False) -> Trip | None:
+def get(conn: Connection, driver_id: int, trip_id: str, *, for_update: bool = False) -> Trip | None:
     lock = " FOR UPDATE" if for_update else ""
     row = conn.execute(
         f"SELECT {_COLUMNS} FROM trips t WHERE t.driver_id = %s AND t.id = %s{lock}",
@@ -76,8 +78,9 @@ def get(conn: Connection, driver_id: int, trip_id: str, *,
     return _row_to_trip(row) if row else None
 
 
-def overlapping(conn: Connection, driver_id: int, start: datetime, end: datetime,
-                exclude_id: str) -> str | None:
+def overlapping(
+    conn: Connection, driver_id: int, start: datetime, end: datetime, exclude_id: str
+) -> str | None:
     """Id of another trip of the driver that overlaps [start, end), if any."""
     row = conn.execute(
         "SELECT id FROM trips WHERE driver_id = %s AND id <> %s"
@@ -98,9 +101,17 @@ def insert_if_absent(conn: Connection, driver_id: int, trip: Trip) -> bool:
         " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
         " ON CONFLICT (driver_id, id) DO NOTHING RETURNING id",
         (
-            driver_id, trip.id, trip.shift_id, trip.start, trip.end,
-            offset_min(trip.start), offset_min(trip.end),
-            trip.amount, trip.payment, trip.commission, trip.commission_pct,
+            driver_id,
+            trip.id,
+            trip.shift_id,
+            trip.start,
+            trip.end,
+            offset_min(trip.start),
+            offset_min(trip.end),
+            trip.amount,
+            trip.payment,
+            trip.commission,
+            trip.commission_pct,
         ),
     ).fetchone()
     return row is not None
@@ -113,9 +124,17 @@ def update(conn: Connection, driver_id: int, trip: Trip) -> None:
         " end_offset_min = %s, amount = %s, payment = %s, commission = %s, commission_pct = %s"
         " WHERE driver_id = %s AND id = %s",
         (
-            trip.shift_id, trip.start, trip.end, offset_min(trip.start), offset_min(trip.end),
-            trip.amount, trip.payment, trip.commission, trip.commission_pct,
-            driver_id, trip.id,
+            trip.shift_id,
+            trip.start,
+            trip.end,
+            offset_min(trip.start),
+            offset_min(trip.end),
+            trip.amount,
+            trip.payment,
+            trip.commission,
+            trip.commission_pct,
+            driver_id,
+            trip.id,
         ),
     )
 

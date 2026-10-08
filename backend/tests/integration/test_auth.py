@@ -1,9 +1,9 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from app.main import create_app
 from tests.api import code, error
 from tests.factories import create_driver
-from app.main import create_app
 
 USER = {"email": "Driver@Example.com", "password": "secret-pass", "name": "Айдар"}
 
@@ -32,6 +32,7 @@ def login(client, email=USER["email"], password=USER["password"]):
 
 # --- accounts are created by an admin, there is no self-registration ---
 
+
 def test_self_registration_is_gone(app):
     r = TestClient(app).post("/api/auth/register", json={**USER, "email": "new@example.com"})
     assert r.status_code in (404, 405)
@@ -54,8 +55,9 @@ def test_session_cookie_flags(app, account):
 
 
 def test_email_is_unique_case_insensitive(db, account):
-    from app.core.errors import EmailTaken
-    with pytest.raises(EmailTaken):
+    from app.core.errors import EmailTakenError
+
+    with pytest.raises(EmailTakenError):
         create_driver(db, "DRIVER@example.com", "horse-battery-9")
 
 
@@ -74,6 +76,7 @@ def test_session_token_is_stored_hashed(client, db):
 
 
 # --- login / logout ---
+
 
 def test_login_and_logout(app, account):
     fresh = TestClient(app)
@@ -121,10 +124,9 @@ def test_forged_cookie_is_rejected(app):
 
 # --- CSRF ---
 
+
 def test_form_encoded_login_is_rejected(app, account):
-    r = TestClient(app).post(
-        "/api/auth/login", data={"email": USER["email"], "password": USER["password"]}
-    )
+    r = TestClient(app).post("/api/auth/login", data={"email": USER["email"], "password": USER["password"]})
     assert r.status_code == 422
 
 
@@ -135,6 +137,7 @@ def test_logout_requires_json(client):
 
 # --- profile: a driver may change only the timezone ---
 
+
 def test_driver_changes_own_timezone(client):
     r = client.patch("/api/me", json={"default_tz": "Asia/Aqtau"})
     assert r.status_code == 200
@@ -142,15 +145,18 @@ def test_driver_changes_own_timezone(client):
     assert client.get("/api/me").json()["default_tz"] == "Asia/Aqtau"
 
 
-@pytest.mark.parametrize("field, value", [
-    ("name", "Другое имя"),
-    ("car_model", "Toyota Camry"),
-    ("car_plate", "123 ABC 02"),
-    ("default_commission_pct", 5),
-    ("email", "evil@example.com"),
-    ("password", "new-password"),
-    ("role", "admin"),
-])
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("name", "Другое имя"),
+        ("car_model", "Toyota Camry"),
+        ("car_plate", "123 ABC 02"),
+        ("default_commission_pct", 5),
+        ("email", "evil@example.com"),
+        ("password", "new-password"),
+        ("role", "admin"),
+    ],
+)
 def test_driver_cannot_change_admin_managed_fields(client, field, value):
     before = client.get("/api/me").json()
     r = client.patch("/api/me", json={field: value})
@@ -166,13 +172,16 @@ def test_mixed_patch_is_rejected_as_a_whole(client):
     assert client.get("/api/me").json()["default_tz"] == "Asia/Almaty"  # nothing applied
 
 
-@pytest.mark.parametrize("value, expected", [
-    ("+05:00", "unknown_timezone"),     # offsets are no longer accepted
-    ("Asia/Nowhere", "unknown_timezone"),
-    ("asia/almaty", "unknown_timezone"),
-    (None, "string_type"),
-    (5, "string_type"),
-])
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("+05:00", "unknown_timezone"),  # offsets are no longer accepted
+        ("Asia/Nowhere", "unknown_timezone"),
+        ("asia/almaty", "unknown_timezone"),
+        (None, "string_type"),
+        (5, "string_type"),
+    ],
+)
 def test_timezone_validation(client, value, expected):
     r = client.patch("/api/me", json={"default_tz": value})
     assert r.status_code == 422

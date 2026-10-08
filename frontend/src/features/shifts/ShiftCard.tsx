@@ -1,19 +1,19 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { api } from "../../shared/api/client";
-import { errorMessage } from "../../shared/api/errors";
-import type { Shift, Trip } from "../../shared/api/types";
-import { formatMoney } from "../../shared/lib/money";
-import { tripsText } from "../../shared/lib/plural";
-import { formatDateTime, formatDuration, hhmm, isoDay, isoToLocalCeil } from "../../shared/lib/time";
-import { ConfirmDialog } from "../../shared/ui/ConfirmDialog";
-import { useToast } from "../../shared/ui/Toast";
-import { invalidateDiary, type DiaryScope } from "../diary/scope";
-import { TripDialog } from "../trips/TripDialog";
-import { TripTable } from "../trips/TripTable";
-import { isLockedForDriver } from "./api";
-import { ShiftDialog } from "./ShiftDialog";
+import { api } from "@/shared/api/client";
+import { errorMessage } from "@/shared/api/errors";
+import type { Shift, Trip } from "@/shared/api/types";
+import { formatMoney } from "@/shared/lib/money";
+import { tripsText } from "@/shared/lib/plural";
+import { formatDateTime, formatDuration, hhmm, isoDay, isoToLocalCeil } from "@/shared/lib/time";
+import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
+import { useToast } from "@/shared/ui/Toast";
+import { invalidateDiary, type DiaryScope } from "@/features/diary/scope";
+import { TripDialog } from "@/features/trips/TripDialog";
+import { TripTable } from "@/features/trips/TripTable";
+import { isLockedForDriver } from "@/features/shifts/api";
+import { ShiftDialog } from "@/features/shifts/ShiftDialog";
 
 interface Props {
   scope: DiaryScope;

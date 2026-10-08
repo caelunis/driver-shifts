@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
-import { get, withQuery } from "../../shared/api/client";
-import type { DriverInfo } from "../../shared/api/types";
+import { get, withQuery } from "@/shared/api/client";
+import type { DriverInfo } from "@/shared/api/types";
 
 export function useDrivers(q: string) {
   return useQuery({

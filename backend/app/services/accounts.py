@@ -1,11 +1,13 @@
 import hashlib
 import logging
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 
 from psycopg_pool import ConnectionPool
 from pydantic_core import PydanticCustomError
 
+from app.core.constants import SESSION_TOKEN_BYTES, SESSION_TTL
+from app.core.enums import Role
 from app.core.errors import DomainValidationError
 from app.core.security import hash_password, verify_password
 from app.repositories import drivers as drivers_repo
@@ -15,11 +17,10 @@ from app.schemas.common import check_password
 
 log = logging.getLogger(__name__)
 
-SESSION_TTL = timedelta(days=30)
 
 # Verified against when the email is unknown, so a login attempt takes the same
 # time whether or not the account exists (no account enumeration via timing).
-_DUMMY_HASH = hash_password(secrets.token_hex(16))
+_DUMMY_HASH = hash_password(secrets.token_hex(SESSION_TOKEN_BYTES))
 
 
 def _token_hash(token: str) -> str:
@@ -29,6 +30,7 @@ def _token_hash(token: str) -> str:
 
 
 # --- login and sessions ---
+
 
 def authenticate(pool: ConnectionPool, email: str, password: str) -> int | None:
     with pool.connection() as conn:
@@ -40,10 +42,9 @@ def authenticate(pool: ConnectionPool, email: str, password: str) -> int | None:
 
 
 def create_session(pool: ConnectionPool, user_id: int) -> str:
-    token = secrets.token_urlsafe(32)
+    token = secrets.token_urlsafe(SESSION_TOKEN_BYTES)
     with pool.connection() as conn:
-        users_repo.insert_session(conn, _token_hash(token), user_id,
-                                  datetime.now(timezone.utc) + SESSION_TTL)
+        users_repo.insert_session(conn, _token_hash(token), user_id, datetime.now(UTC) + SESSION_TTL)
     return token
 
 
@@ -64,6 +65,7 @@ def end_session(pool: ConnectionPool, token: str) -> None:
 
 # --- profiles ---
 
+
 def get_profile(pool: ConnectionPool, user_id: int) -> Profile:
     with pool.connection() as conn:
         return drivers_repo.get_profile(conn, user_id)
@@ -77,14 +79,22 @@ def set_timezone(pool: ConnectionPool, driver_id: int, tz: str) -> Profile:
 
 # --- accounts managed by the admin ---
 
+
 def create_driver(pool: ConnectionPool, data: DriverCreate) -> int:
     """The account and its profile in one transaction: both or neither."""
     # Explicit transaction: the repositories' savepoints would otherwise commit on their own
     # when they run first on a fresh connection
     with pool.connection() as conn, conn.transaction():
-        user_id = users_repo.insert(conn, data.email, hash_password(data.password), "driver")
-        drivers_repo.insert_profile(conn, user_id, data.name, data.car_model, data.car_plate,
-                                    data.default_tz, data.default_commission_pct)
+        user_id = users_repo.insert(conn, data.email, hash_password(data.password), Role.DRIVER)
+        drivers_repo.insert_profile(
+            conn,
+            user_id,
+            data.name,
+            data.car_model,
+            data.car_plate,
+            data.default_tz,
+            data.default_commission_pct,
+        )
     return user_id
 
 
@@ -96,7 +106,7 @@ def update_driver(pool: ConnectionPool, driver_id: int, changes: dict) -> Driver
             try:
                 check_password(changes["password"], email)
             except PydanticCustomError as e:
-                raise DomainValidationError("password", e.type, e.message())
+                raise DomainValidationError("password", e.type, e.message()) from e
         drivers_repo.update_profile(conn, driver_id, changes)
         if "password" in changes:
             users_repo.set_password_hash(conn, driver_id, hash_password(changes["password"]))
@@ -125,9 +135,9 @@ def ensure_admin(pool: ConnectionPool, email: str, password: str) -> bool:
     with pool.connection() as conn:
         existing = users_repo.find_by_email(conn, email)
         if existing:
-            if existing["role"] != "admin":
+            if existing["role"] != Role.ADMIN:
                 # Never silently promote an existing driver account
                 log.warning("%s belongs to a driver account; admin not created", email)
             return False
-        users_repo.insert(conn, email, hash_password(password), "admin")
+        users_repo.insert(conn, email, hash_password(password), Role.ADMIN)
     return True

@@ -1,4 +1,5 @@
 """Migrations apply on an empty database, roll back completely, and apply again."""
+
 import psycopg
 import pytest
 
@@ -49,6 +50,7 @@ def test_up_down_up(scratch_db):
 
 def test_every_migration_has_a_down_section():
     from tests.conftest import BACKEND
+
     for path in sorted((BACKEND / "db" / "migrations").glob("*.sql")):
         text = path.read_text(encoding="utf-8")
         assert "-- migrate:up" in text and "-- migrate:down" in text, path.name
@@ -60,21 +62,28 @@ def test_stricter_data_migration_converts_profiles(scratch_db):
     assert dbmate(scratch_db, "up").returncode == 0
     assert dbmate(scratch_db, "rollback").returncode == 0  # back to free-text car and offsets
     with psycopg.connect(scratch_db) as conn:
-        for i, (car, tz) in enumerate([
-            ("Hyundai Accent, 777 AAA 02", "+05:00"),
-            ("Kia Rio 777AAA02", "+06:00"),       # same plate typed twice: the first keeps it
-            ("Toyota Camry", "+05:45"),
-            ("", "-03:00"),
-        ], start=1):
-            conn.execute("INSERT INTO users (id, email, password_hash, role)"
-                         " VALUES (%s, %s, 'x', 'driver')", (i, f"d{i}@example.com"))
-            conn.execute("INSERT INTO drivers (user_id, name, car, default_tz)"
-                         " VALUES (%s, 'D', %s, %s)", (i, car, tz))
+        for i, (car, tz) in enumerate(
+            [
+                ("Hyundai Accent, 777 AAA 02", "+05:00"),
+                ("Kia Rio 777AAA02", "+06:00"),  # same plate typed twice: the first keeps it
+                ("Toyota Camry", "+05:45"),
+                ("", "-03:00"),
+            ],
+            start=1,
+        ):
+            conn.execute(
+                "INSERT INTO users (id, email, password_hash, role) VALUES (%s, %s, 'x', 'driver')",
+                (i, f"d{i}@example.com"),
+            )
+            conn.execute(
+                "INSERT INTO drivers (user_id, name, car, default_tz) VALUES (%s, 'D', %s, %s)", (i, car, tz)
+            )
 
     assert dbmate(scratch_db, "up").returncode == 0
     with psycopg.connect(scratch_db) as conn:
-        rows = conn.execute("SELECT car_model, car_plate, default_tz FROM drivers"
-                            " ORDER BY user_id").fetchall()
+        rows = conn.execute(
+            "SELECT car_model, car_plate, default_tz FROM drivers ORDER BY user_id"
+        ).fetchall()
     assert rows == [
         ("Hyundai Accent", "777AAA02", "Asia/Almaty"),
         ("Kia Rio 777AAA02", None, "Etc/GMT-6"),
@@ -85,5 +94,9 @@ def test_stricter_data_migration_converts_profiles(scratch_db):
     assert dbmate(scratch_db, "rollback").returncode == 0
     with psycopg.connect(scratch_db) as conn:
         rows = conn.execute("SELECT car, default_tz FROM drivers ORDER BY user_id").fetchall()
-    assert rows == [("Hyundai Accent, 777AAA02", "+05:00"), ("Kia Rio 777AAA02", "+06:00"),
-                    ("Toyota Camry", "+05:45"), ("", "-03:00")]
+    assert rows == [
+        ("Hyundai Accent, 777AAA02", "+05:00"),
+        ("Kia Rio 777AAA02", "+06:00"),
+        ("Toyota Camry", "+05:45"),
+        ("", "-03:00"),
+    ]

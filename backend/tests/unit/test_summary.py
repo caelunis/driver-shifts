@@ -5,8 +5,9 @@ from app.services.summary import day_summary, shift_summary, totals
 
 
 def make(id, start, end, amount, payment, commission):
-    return Trip(id=id, shift_id=1, start=start, end=end, amount=amount, payment=payment,
-                commission=commission)
+    return Trip(
+        id=id, shift_id=1, start=start, end=end, amount=amount, payment=payment, commission=commission
+    )
 
 
 SAMPLE = [

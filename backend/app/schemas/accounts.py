@@ -1,22 +1,25 @@
 from datetime import date, datetime
-from typing import Literal, Optional
 
-from pydantic import EmailStr, Field, ValidationInfo, field_validator
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, Field, ValidationInfo, field_validator
 from pydantic_core import PydanticCustomError
 
-from .common import (CarPlate, CleanText, CommissionPct, IanaTz, Password, PersonName,
-                     StrictModel, check_password)
-
-DEFAULT_TZ = "Asia/Almaty"
+from app.core.constants import DEFAULT_TZ, PASSWORD_MAX_LENGTH
+from app.core.enums import ErrorCode, Role
+from app.schemas.common import (
+    CarPlate,
+    CleanText,
+    CommissionPct,
+    IanaTz,
+    Password,
+    PersonName,
+    StrictModel,
+    check_password,
+)
 
 
 class LoginIn(StrictModel):
     email: EmailStr
-    password: str = Field(min_length=1, max_length=128)
-
-
-Role = Literal["driver", "admin"]
+    password: str = Field(min_length=1, max_length=PASSWORD_MAX_LENGTH)
 
 
 class Profile(BaseModel):
@@ -26,11 +29,11 @@ class Profile(BaseModel):
     id: int
     email: str
     role: Role
-    name: Optional[str] = None
-    car_model: Optional[str] = None
-    car_plate: Optional[str] = None  # normalized, e.g. "123ABC02"
-    default_tz: Optional[str] = None
-    default_commission_pct: Optional[float] = None
+    name: str | None = None
+    car_model: str | None = None
+    car_plate: str | None = None  # normalized, e.g. "123ABC02"
+    default_tz: str | None = None
+    default_commission_pct: float | None = None
 
 
 class SelfProfileUpdate(StrictModel):
@@ -44,9 +47,9 @@ class DriverCreate(StrictModel):
     password: Password
     name: PersonName
     car_model: CleanText = ""
-    car_plate: Optional[CarPlate] = None
+    car_plate: CarPlate | None = None
     default_tz: IanaTz = DEFAULT_TZ
-    default_commission_pct: Optional[CommissionPct] = None
+    default_commission_pct: CommissionPct | None = None
 
     @field_validator("password")
     @classmethod
@@ -58,20 +61,20 @@ class DriverCreate(StrictModel):
 class DriverUpdate(StrictModel):
     """PATCH /api/admin/drivers/{id}: only the fields that were sent are changed."""
 
-    name: Optional[PersonName] = None
-    car_model: Optional[CleanText] = None
-    car_plate: Optional[CarPlate] = None              # null removes the plate
-    default_tz: Optional[IanaTz] = None
-    default_commission_pct: Optional[CommissionPct] = None  # null clears it
+    name: PersonName | None = None
+    car_model: CleanText | None = None
+    car_plate: CarPlate | None = None  # null removes the plate
+    default_tz: IanaTz | None = None
+    default_commission_pct: CommissionPct | None = None  # null clears it
     # Compared with the email by the service, which knows the stored one
-    password: Optional[Password] = None
+    password: Password | None = None
 
     @field_validator("name", "car_model", "default_tz", "password")
     @classmethod
     def not_null(cls, v, info: ValidationInfo):
         # Runs only for fields the client sent: rejects an explicit null
         if v is None:
-            raise PydanticCustomError("null_not_allowed", "Field cannot be null")
+            raise PydanticCustomError(ErrorCode.NULL_NOT_ALLOWED, "Field cannot be null")
         if info.field_name == "password":
             check_password(v, None)
         return v
@@ -87,4 +90,4 @@ class DriverInfo(Profile):
     trips_count: int
     revenue: int
     net: int
-    last_trip_day: Optional[date]
+    last_trip_day: date | None

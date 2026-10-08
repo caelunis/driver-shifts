@@ -1,4 +1,4 @@
-import type { ErrorBody, FieldError } from "./types";
+import type { ErrorBody, FieldError } from "@/shared/api/types";
 
 /** A non-2xx response, or no response at all (status 0). */
 export class ApiError extends Error {

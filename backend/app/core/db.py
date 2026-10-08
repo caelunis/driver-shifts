@@ -1,8 +1,10 @@
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
+from app.core.constants import DB_CONNECT_TIMEOUT, DB_POOL_MAX_SIZE, DB_POOL_MIN_SIZE
 
-def open_pool(conninfo: str, timeout: float = 10.0) -> ConnectionPool:
+
+def open_pool(conninfo: str, timeout: float = DB_CONNECT_TIMEOUT) -> ConnectionPool:
     """Open a connection pool and wait until the database is reachable.
 
     The schema is managed by dbmate migrations (backend/db/migrations), never by the app.
@@ -13,7 +15,11 @@ def open_pool(conninfo: str, timeout: float = 10.0) -> ConnectionPool:
     `conn.transaction()` themselves first.
     """
     pool = ConnectionPool(
-        conninfo, min_size=1, max_size=10, open=False, kwargs={"row_factory": dict_row}
+        conninfo,
+        min_size=DB_POOL_MIN_SIZE,
+        max_size=DB_POOL_MAX_SIZE,
+        open=False,
+        kwargs={"row_factory": dict_row},
     )
     pool.open(wait=True, timeout=timeout)
     return pool

@@ -2,18 +2,18 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router";
 
-import { DayView } from "../features/diary/DayView";
-import { adminScope } from "../features/diary/scope";
-import { useDriver } from "../features/drivers/api";
-import { DriverDialog } from "../features/drivers/DriverDialog";
-import { api } from "../shared/api/client";
-import { errorMessage } from "../shared/api/errors";
-import { formatPct } from "../shared/lib/money";
-import { carText } from "../shared/lib/plate";
-import { tripsText } from "../shared/lib/plural";
-import { todayIn } from "../shared/lib/time";
-import { ConfirmDialog } from "../shared/ui/ConfirmDialog";
-import { useToast } from "../shared/ui/Toast";
+import { DayView } from "@/features/diary/DayView";
+import { adminScope } from "@/features/diary/scope";
+import { useDriver } from "@/features/drivers/api";
+import { DriverDialog } from "@/features/drivers/DriverDialog";
+import { api } from "@/shared/api/client";
+import { errorMessage } from "@/shared/api/errors";
+import { formatPct } from "@/shared/lib/money";
+import { carText } from "@/shared/lib/plate";
+import { tripsText } from "@/shared/lib/plural";
+import { todayIn } from "@/shared/lib/time";
+import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
+import { useToast } from "@/shared/ui/Toast";
 
 /** The admin's view of one driver: profile header and the driver's diary. */
 export function DriverDiaryPage() {

@@ -10,7 +10,7 @@
     "typecheck": "tsc -b",
     "test": "vitest run",
     "e2e": "playwright test",
-    "gen:api": "../.venv/bin/python ../backend/scripts/export_openapi.py > openapi.json && openapi-typescript openapi.json -o src/shared/api/schema.d.ts"
+    "gen:api": "uv run --project ../backend python ../backend/scripts/export_openapi.py > openapi.json && openapi-typescript openapi.json -o src/shared/api/schema.d.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

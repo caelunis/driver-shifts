@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { get } from "../../shared/api/client";
-import type { Shift } from "../../shared/api/types";
+import { get } from "@/shared/api/client";
+import type { Shift } from "@/shared/api/types";
 
 /** The driver's open shift, or null. */
 export function useCurrentShift(enabled = true) {

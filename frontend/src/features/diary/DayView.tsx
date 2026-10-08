@@ -1,11 +1,11 @@
-import { errorMessage } from "../../shared/api/errors";
-import { addDays, formatDay, todayIn } from "../../shared/lib/time";
-import { CurrentShiftBar } from "../shifts/CurrentShiftBar";
-import { ShiftCard } from "../shifts/ShiftCard";
-import { useDay, useDays } from "./api";
-import { Calendar } from "./Calendar";
-import type { DiaryScope } from "./scope";
-import { SummaryCards } from "./SummaryCards";
+import { errorMessage } from "@/shared/api/errors";
+import { addDays, formatDay, todayIn } from "@/shared/lib/time";
+import { CurrentShiftBar } from "@/features/shifts/CurrentShiftBar";
+import { ShiftCard } from "@/features/shifts/ShiftCard";
+import { useDay, useDays } from "@/features/diary/api";
+import { Calendar } from "@/features/diary/Calendar";
+import type { DiaryScope } from "@/features/diary/scope";
+import { SummaryCards } from "@/features/diary/SummaryCards";
 
 interface Props {
   scope: DiaryScope;

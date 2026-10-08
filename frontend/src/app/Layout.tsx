@@ -1,9 +1,9 @@
 import { Link, NavLink, Outlet, useNavigate } from "react-router";
 
-import { useLogout, useMe } from "../features/auth/api";
-import { carText } from "../shared/lib/plate";
-import { ThemeToggle } from "../shared/ui/ThemeToggle";
-import { useToast } from "../shared/ui/Toast";
+import { useLogout, useMe } from "@/features/auth/api";
+import { carText } from "@/shared/lib/plate";
+import { ThemeToggle } from "@/shared/ui/ThemeToggle";
+import { useToast } from "@/shared/ui/Toast";
 
 export function Layout() {
   const { data: me } = useMe();

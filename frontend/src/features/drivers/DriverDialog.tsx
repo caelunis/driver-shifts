@@ -2,17 +2,17 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 
-import { api, ApiError } from "../../shared/api/client";
-import { errorMessage } from "../../shared/api/errors";
-import type { DriverCreate, DriverInfo, DriverUpdate } from "../../shared/api/types";
-import { applyServerErrors } from "../../shared/lib/forms";
-import { formatPlate, normalizePlate } from "../../shared/lib/plate";
-import { DEFAULT_TZ } from "../../shared/lib/timezones";
-import { Field } from "../../shared/ui/Field";
-import { Modal } from "../../shared/ui/Modal";
-import { TimezoneSelect } from "../../shared/ui/TimezoneSelect";
-import { useToast } from "../../shared/ui/Toast";
-import { driverFormSchema, parsePct, type DriverFormValues } from "./schema";
+import { api, ApiError } from "@/shared/api/client";
+import { errorMessage } from "@/shared/api/errors";
+import type { DriverCreate, DriverInfo, DriverUpdate } from "@/shared/api/types";
+import { applyServerErrors } from "@/shared/lib/forms";
+import { formatPlate, normalizePlate } from "@/shared/lib/plate";
+import { DEFAULT_TZ } from "@/shared/lib/timezones";
+import { Field } from "@/shared/ui/Field";
+import { Modal } from "@/shared/ui/Modal";
+import { TimezoneSelect } from "@/shared/ui/TimezoneSelect";
+import { useToast } from "@/shared/ui/Toast";
+import { driverFormSchema, parsePct, type DriverFormValues } from "@/features/drivers/schema";
 
 interface Props {
   open: boolean;

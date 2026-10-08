@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 
-import { formatDay } from "../src/shared/lib/time";
-import { ADMIN, apiAs, createDriver, deleteDriver, loginUi, PASSWORD, pastDay, type TestDriver } from "./helpers";
+import { formatDay } from "@/shared/lib/time";
+import { ADMIN, apiAs, createDriver, deleteDriver, loginUi, PASSWORD, pastDay, type TestDriver } from "@e2e/helpers";
 
 // One driver per test file, used by its tests in order: they build on each other
 test.describe.configure({ mode: "serial" });

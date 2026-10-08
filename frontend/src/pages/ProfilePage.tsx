@@ -1,16 +1,16 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 
-import { meKey, useMe } from "../features/auth/api";
-import { api } from "../shared/api/client";
-import type { Profile } from "../shared/api/types";
-import { applyServerErrors } from "../shared/lib/forms";
-import { formatPct } from "../shared/lib/money";
-import { formatPlate } from "../shared/lib/plate";
-import { DEFAULT_TZ } from "../shared/lib/timezones";
-import { Field } from "../shared/ui/Field";
-import { TimezoneSelect } from "../shared/ui/TimezoneSelect";
-import { useToast } from "../shared/ui/Toast";
+import { meKey, useMe } from "@/features/auth/api";
+import { api } from "@/shared/api/client";
+import type { Profile } from "@/shared/api/types";
+import { applyServerErrors } from "@/shared/lib/forms";
+import { formatPct } from "@/shared/lib/money";
+import { formatPlate } from "@/shared/lib/plate";
+import { DEFAULT_TZ } from "@/shared/lib/timezones";
+import { Field } from "@/shared/ui/Field";
+import { TimezoneSelect } from "@/shared/ui/TimezoneSelect";
+import { useToast } from "@/shared/ui/Toast";
 
 /** The driver sees their profile; only the timezone is theirs to change. */
 export function ProfilePage() {

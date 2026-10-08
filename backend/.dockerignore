@@ -1,5 +1,7 @@
 .venv/
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
 __pycache__/
 *.pyc
 .env
@@ -7,5 +9,3 @@ tests/
 db/
 Dockerfile
 .dockerignore
-requirements-dev.txt
-pytest.ini

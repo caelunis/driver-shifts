@@ -4,14 +4,20 @@ import os
 import threading
 import time
 
-# scrypt parameters (RFC 7914 recommendations for interactive logins)
-_N, _R, _P = 2**14, 8, 1
+from app.core.constants import (
+    LOGIN_FAILURE_WINDOW,
+    LOGIN_MAX_FAILURES,
+    SCRYPT_N,
+    SCRYPT_P,
+    SCRYPT_R,
+    SCRYPT_SALT_BYTES,
+)
 
 
 def hash_password(password: str) -> str:
-    salt = os.urandom(16)
-    key = hashlib.scrypt(password.encode(), salt=salt, n=_N, r=_R, p=_P)
-    return f"scrypt${_N}${_R}${_P}${salt.hex()}${key.hex()}"
+    salt = os.urandom(SCRYPT_SALT_BYTES)
+    key = hashlib.scrypt(password.encode(), salt=salt, n=SCRYPT_N, r=SCRYPT_R, p=SCRYPT_P)
+    return f"scrypt${SCRYPT_N}${SCRYPT_R}${SCRYPT_P}${salt.hex()}${key.hex()}"
 
 
 def verify_password(password: str, stored: str) -> bool:
@@ -21,9 +27,7 @@ def verify_password(password: str, stored: str) -> bool:
         return False
     if algo != "scrypt":
         return False
-    candidate = hashlib.scrypt(
-        password.encode(), salt=bytes.fromhex(salt), n=int(n), r=int(r), p=int(p)
-    )
+    candidate = hashlib.scrypt(password.encode(), salt=bytes.fromhex(salt), n=int(n), r=int(r), p=int(p))
     return hmac.compare_digest(candidate, bytes.fromhex(key))
 
 
@@ -34,7 +38,11 @@ class LoginLimiter:
     instances would need a shared store (e.g. a table or Redis).
     """
 
-    def __init__(self, max_failures: int = 5, window_seconds: int = 15 * 60):
+    def __init__(
+        self,
+        max_failures: int = LOGIN_MAX_FAILURES,
+        window_seconds: int = int(LOGIN_FAILURE_WINDOW.total_seconds()),
+    ):
         self.max_failures = max_failures
         self.window = window_seconds
         self._failures: dict[str, list[float]] = {}

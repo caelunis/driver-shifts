@@ -11,7 +11,7 @@ import {
   offsetMinutes,
   parseOffset,
   todayIn,
-} from "./time";
+} from "@/shared/lib/time";
 
 describe("offsets", () => {
   it("knows Almaty is UTC+5 since 2024", () => {

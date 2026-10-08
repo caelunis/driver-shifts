@@ -6,3 +6,5 @@ __pycache__/
 .idea/
 .DS_Store
 .env
+.ruff_cache/
+.mypy_cache/

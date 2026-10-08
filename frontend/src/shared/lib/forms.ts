@@ -1,7 +1,7 @@
 import type { FieldValues, Path, UseFormSetError } from "react-hook-form";
 
-import { ApiError } from "../api/client";
-import { errorMessage, fieldErrorMessage } from "../api/errors";
+import { ApiError } from "@/shared/api/client";
+import { errorMessage, fieldErrorMessage } from "@/shared/api/errors";
 
 /**
  * Puts a failed request's field errors under the form's own inputs.

@@ -1947,12 +1947,7 @@
             "title": "Email"
           },
           "role": {
-            "type": "string",
-            "enum": [
-              "driver",
-              "admin"
-            ],
-            "title": "Role"
+            "$ref": "#/components/schemas/Role"
           },
           "name": {
             "type": "string",
@@ -2165,6 +2160,14 @@
         "type": "object",
         "title": "PaymentBreakdown"
       },
+      "PaymentMethod": {
+        "type": "string",
+        "enum": [
+          "cash",
+          "card"
+        ],
+        "title": "PaymentMethod"
+      },
       "Profile": {
         "properties": {
           "id": {
@@ -2176,12 +2179,7 @@
             "title": "Email"
           },
           "role": {
-            "type": "string",
-            "enum": [
-              "driver",
-              "admin"
-            ],
-            "title": "Role"
+            "$ref": "#/components/schemas/Role"
           },
           "name": {
             "anyOf": [
@@ -2248,6 +2246,14 @@
         "title": "Profile",
         "description": "The logged-in account. Driver fields are None for admins: an admin is a\nuser without a driver profile."
       },
+      "Role": {
+        "type": "string",
+        "enum": [
+          "driver",
+          "admin"
+        ],
+        "title": "Role"
+      },
       "Shift": {
         "properties": {
           "id": {
@@ -2272,12 +2278,7 @@
             "title": "End"
           },
           "status": {
-            "type": "string",
-            "enum": [
-              "open",
-              "closed"
-            ],
-            "title": "Status"
+            "$ref": "#/components/schemas/ShiftStatus"
           },
           "local_day": {
             "type": "string",
@@ -2347,12 +2348,7 @@
             "title": "End"
           },
           "status": {
-            "type": "string",
-            "enum": [
-              "open",
-              "closed"
-            ],
-            "title": "Status"
+            "$ref": "#/components/schemas/ShiftStatus"
           },
           "local_day": {
             "type": "string",
@@ -2469,6 +2465,14 @@
         "title": "ShiftStartIn",
         "description": "Start a shift now (no fields), at a given time, or enter a past shift (start + end)."
       },
+      "ShiftStatus": {
+        "type": "string",
+        "enum": [
+          "open",
+          "closed"
+        ],
+        "title": "ShiftStatus"
+      },
       "ShiftSummary": {
         "properties": {
           "count": {
@@ -2551,12 +2555,7 @@
             "description": "Trip amount, KZT"
           },
           "payment": {
-            "type": "string",
-            "enum": [
-              "cash",
-              "card"
-            ],
-            "title": "Payment"
+            "$ref": "#/components/schemas/PaymentMethod"
           },
           "commission": {
             "type": "integer",
@@ -2625,12 +2624,7 @@
             "description": "Trip amount, KZT"
           },
           "payment": {
-            "type": "string",
-            "enum": [
-              "cash",
-              "card"
-            ],
-            "title": "Payment"
+            "$ref": "#/components/schemas/PaymentMethod"
           },
           "commission": {
             "anyOf": [
@@ -2712,17 +2706,12 @@
           "payment": {
             "anyOf": [
               {
-                "type": "string",
-                "enum": [
-                  "cash",
-                  "card"
-                ]
+                "$ref": "#/components/schemas/PaymentMethod"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Payment"
+            ]
           },
           "commission": {
             "anyOf": [

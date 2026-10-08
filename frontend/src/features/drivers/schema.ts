@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { normalizePlate } from "../../shared/lib/plate";
+import { normalizePlate } from "@/shared/lib/plate";
 
 // Mirrors the server's rules (backend app/schemas/accounts.py); the server has the last word,
 // e.g. on the list of common passwords.

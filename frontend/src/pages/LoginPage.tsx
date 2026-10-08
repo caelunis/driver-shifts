@@ -3,12 +3,12 @@ import { useForm } from "react-hook-form";
 import { Navigate, useLocation, useNavigate } from "react-router";
 import { z } from "zod";
 
-import { homeFor } from "../app/guards";
-import { useLogin, useMe } from "../features/auth/api";
-import { ApiError } from "../shared/api/client";
-import { errorMessage } from "../shared/api/errors";
-import { applyServerErrors } from "../shared/lib/forms";
-import { Field } from "../shared/ui/Field";
+import { homeFor } from "@/app/guards";
+import { useLogin, useMe } from "@/features/auth/api";
+import { ApiError } from "@/shared/api/client";
+import { errorMessage } from "@/shared/api/errors";
+import { applyServerErrors } from "@/shared/lib/forms";
+import { Field } from "@/shared/ui/Field";
 
 const schema = z.object({
   email: z.email("Введите e-mail"),

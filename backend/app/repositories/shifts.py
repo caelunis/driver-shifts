@@ -1,4 +1,5 @@
 """SQL for shifts. Every function takes a connection; transactions belong to the caller."""
+
 from datetime import date, datetime
 
 from psycopg import Connection
@@ -16,20 +17,27 @@ def _row(row: dict | None) -> dict | None:
         "id": row["id"],
         "driver_id": row["driver_id"],
         "start": restore_offset(row["started_at"], row["start_offset_min"]),
-        "end": (restore_offset(row["ended_at"], row["end_offset_min"])
-                if row["ended_at"] is not None else None),
+        "end": (
+            restore_offset(row["ended_at"], row["end_offset_min"]) if row["ended_at"] is not None else None
+        ),
         "local_day": row["local_day"],
         "note": row["note"],
     }
 
 
-def insert(conn: Connection, driver_id: int, start: datetime, end: datetime | None,
-           note: str) -> dict:
+def insert(conn: Connection, driver_id: int, start: datetime, end: datetime | None, note: str) -> dict:
     row = conn.execute(
         f"INSERT INTO shifts (driver_id, started_at, ended_at, start_offset_min, end_offset_min,"
         f" local_day, note) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING {_COLUMNS}",
-        (driver_id, start, end, offset_min(start), offset_min(end) if end else None,
-         start.date(), note),  # start.date() is the local day in the start's own offset
+        (
+            driver_id,
+            start,
+            end,
+            offset_min(start),
+            offset_min(end) if end else None,
+            start.date(),
+            note,
+        ),  # start.date() is the local day in the start's own offset
     ).fetchone()
     return _row(row)
 
@@ -67,13 +75,11 @@ def close(conn: Connection, shift_id: int, end: datetime) -> dict:
     return _row(row)
 
 
-def update(conn: Connection, shift_id: int, start: datetime, end: datetime | None,
-           note: str) -> dict:
+def update(conn: Connection, shift_id: int, start: datetime, end: datetime | None, note: str) -> dict:
     row = conn.execute(
         f"UPDATE shifts SET started_at = %s, ended_at = %s, start_offset_min = %s,"
         f" end_offset_min = %s, local_day = %s, note = %s WHERE id = %s RETURNING {_COLUMNS}",
-        (start, end, offset_min(start), offset_min(end) if end else None, start.date(), note,
-         shift_id),
+        (start, end, offset_min(start), offset_min(end) if end else None, start.date(), note, shift_id),
     ).fetchone()
     return _row(row)
 

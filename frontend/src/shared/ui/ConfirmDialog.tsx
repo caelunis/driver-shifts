@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { Modal } from "./Modal";
+import { Modal } from "@/shared/ui/Modal";
 
 interface Props {
   open: boolean;

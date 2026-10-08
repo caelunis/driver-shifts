@@ -1,7 +1,7 @@
 import { useState } from "react";
 
-import type { DayInfo } from "../../shared/api/types";
-import { formatMoney } from "../../shared/lib/money";
+import type { DayInfo } from "@/shared/api/types";
+import { formatMoney } from "@/shared/lib/money";
 
 const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const MONTH = new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric", timeZone: "UTC" });

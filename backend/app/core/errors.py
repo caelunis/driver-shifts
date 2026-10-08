@@ -7,14 +7,19 @@ Every 4xx/5xx response has the body
     {"field": "amount", "code": "greater_than", "message": "...", "ctx": {"gt": 0}}
 """
 
+from fastapi import status as http
+
+from app.core.enums import ErrorCode
+
 
 class ApiError(Exception):
     """An error with an HTTP status and a stable code."""
 
-    status = 400
+    status = http.HTTP_400_BAD_REQUEST
 
-    def __init__(self, code: str, message: str, *, status: int | None = None,
-                 headers: dict | None = None, **ctx):
+    def __init__(
+        self, code: str, message: str, *, status: int | None = None, headers: dict | None = None, **ctx
+    ):
         super().__init__(message)
         self.code, self.message, self.ctx = code, message, ctx
         self.headers = headers
@@ -22,17 +27,17 @@ class ApiError(Exception):
             self.status = status
 
 
-class NotFound(ApiError):
-    status = 404
+class NotFoundError(ApiError):
+    status = http.HTTP_404_NOT_FOUND
 
-    def __init__(self, code: str = "not_found", message: str = "Not found", **ctx):
+    def __init__(self, code: str = ErrorCode.NOT_FOUND, message: str = "Not found", **ctx):
         super().__init__(code, message, **ctx)
 
 
-class Conflict(ApiError):
+class ConflictError(ApiError):
     """The request clashes with the current state, e.g. a shift is already open."""
 
-    status = 409
+    status = http.HTTP_409_CONFLICT
 
 
 class DomainValidationError(Exception):
@@ -46,15 +51,15 @@ class DomainValidationError(Exception):
         return {"field": self.field, "code": self.code, "message": self.message, "ctx": self.ctx}
 
 
-class EmailTaken(Exception):
+class EmailTakenError(Exception):
     pass
 
 
-class PlateTaken(Exception):
+class PlateTakenError(Exception):
     pass
 
 
-class TripConflict(Exception):
+class TripConflictError(Exception):
     """A trip with this id already exists, but with different data."""
 
     def __init__(self, existing):

@@ -3,18 +3,18 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
-import { api, ApiError, request } from "../../shared/api/client";
-import type { Shift, Trip, TripIn, TripPatch } from "../../shared/api/types";
-import { applyServerErrors } from "../../shared/lib/forms";
-import { commissionFor, formatMoney, formatPct } from "../../shared/lib/money";
-import { isoToLocal, localToIso, localWithOffset, parseOffset } from "../../shared/lib/time";
-import { uuid } from "../../shared/lib/uuid";
-import { Field } from "../../shared/ui/Field";
-import { Modal } from "../../shared/ui/Modal";
-import { useToast } from "../../shared/ui/Toast";
-import { meKey } from "../auth/api";
-import { invalidateDiary, type DiaryScope } from "../diary/scope";
-import { tripFormSchema, type TripFormValues } from "./schema";
+import { api, ApiError, request } from "@/shared/api/client";
+import type { Shift, Trip, TripIn, TripPatch } from "@/shared/api/types";
+import { applyServerErrors } from "@/shared/lib/forms";
+import { commissionFor, formatMoney, formatPct } from "@/shared/lib/money";
+import { isoToLocal, localToIso, localWithOffset, parseOffset } from "@/shared/lib/time";
+import { uuid } from "@/shared/lib/uuid";
+import { Field } from "@/shared/ui/Field";
+import { Modal } from "@/shared/ui/Modal";
+import { useToast } from "@/shared/ui/Toast";
+import { meKey } from "@/features/auth/api";
+import { invalidateDiary, type DiaryScope } from "@/features/diary/scope";
+import { tripFormSchema, type TripFormValues } from "@/features/trips/schema";
 
 interface Props {
   scope: DiaryScope;

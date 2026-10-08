@@ -1,5 +1,5 @@
+from collections.abc import Iterable
 from datetime import date, datetime
-from typing import Iterable
 
 from app.schemas.shifts import ShiftSummary
 from app.schemas.trips import DaySummary, PaymentBreakdown, Totals, Trip
@@ -16,8 +16,9 @@ def totals(trips: Iterable[Trip]) -> Totals:
         bucket = cash if t.payment == "cash" else card
         bucket.count += 1
         bucket.amount += t.amount
-    return Totals(count=count, revenue=revenue, commission=commission,
-                  net=revenue - commission, cash=cash, card=card)
+    return Totals(
+        count=count, revenue=revenue, commission=commission, net=revenue - commission, cash=cash, card=card
+    )
 
 
 def day_summary(trips: Iterable[Trip], day: date, shifts: int) -> DaySummary:

@@ -3,16 +3,16 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 
-import { api } from "../../shared/api/client";
-import type { Shift, ShiftPatch, ShiftStartIn } from "../../shared/api/types";
-import { applyServerErrors } from "../../shared/lib/forms";
-import { isoDay, isoToLocal, localToIso, localWithOffset, nowLocal, parseOffset } from "../../shared/lib/time";
-import { Field } from "../../shared/ui/Field";
-import { Modal } from "../../shared/ui/Modal";
-import { useToast } from "../../shared/ui/Toast";
-import { invalidateDiary, type DiaryScope } from "../diary/scope";
-import { DAY_MS } from "./api";
-import { shiftFormSchema, type ShiftDialogMode, type ShiftFormValues } from "./schema";
+import { api } from "@/shared/api/client";
+import type { Shift, ShiftPatch, ShiftStartIn } from "@/shared/api/types";
+import { applyServerErrors } from "@/shared/lib/forms";
+import { isoDay, isoToLocal, localToIso, localWithOffset, nowLocal, parseOffset } from "@/shared/lib/time";
+import { Field } from "@/shared/ui/Field";
+import { Modal } from "@/shared/ui/Modal";
+import { useToast } from "@/shared/ui/Toast";
+import { invalidateDiary, type DiaryScope } from "@/features/diary/scope";
+import { DAY_MS } from "@/features/shifts/api";
+import { shiftFormSchema, type ShiftDialogMode, type ShiftFormValues } from "@/features/shifts/schema";
 
 interface Props {
   scope: DiaryScope;

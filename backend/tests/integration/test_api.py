@@ -8,10 +8,24 @@ from tests.api import fields
 from tests.factories import day_shift
 
 # shift_id 1: the day shift created by the `client` fixture
-T1 = {"id": "t1", "shift_id": 1, "start": "2026-10-01T08:10:00+05:00", "end": "2026-10-01T08:32:00+05:00",
-      "amount": 2400, "payment": "card", "commission": 360}
-T2 = {"id": "t2", "shift_id": 1, "start": "2026-10-01T09:05:00+05:00", "end": "2026-10-01T09:20:00+05:00",
-      "amount": 1500, "payment": "cash", "commission": 225}
+T1 = {
+    "id": "t1",
+    "shift_id": 1,
+    "start": "2026-10-01T08:10:00+05:00",
+    "end": "2026-10-01T08:32:00+05:00",
+    "amount": 2400,
+    "payment": "card",
+    "commission": 360,
+}
+T2 = {
+    "id": "t2",
+    "shift_id": 1,
+    "start": "2026-10-01T09:05:00+05:00",
+    "end": "2026-10-01T09:20:00+05:00",
+    "amount": 1500,
+    "payment": "cash",
+    "commission": 225,
+}
 
 
 @pytest.fixture
@@ -37,6 +51,7 @@ def count_trips(client, day="2026-10-01"):
 
 # --- reading ---
 
+
 def test_health(db):
     assert TestClient(create_app(db)).get("/api/health").json() == {"status": "ok"}
 
@@ -60,8 +75,15 @@ def test_bad_date_param(client):
 
 # --- adding and duplicate protection ---
 
-NEW = {"id": "t3", "shift_id": 1, "start": "2026-10-01T10:00:00+05:00", "end": "2026-10-01T10:20:00+05:00",
-       "amount": 2000, "payment": "cash", "commission": 300}
+NEW = {
+    "id": "t3",
+    "shift_id": 1,
+    "start": "2026-10-01T10:00:00+05:00",
+    "end": "2026-10-01T10:20:00+05:00",
+    "amount": 2000,
+    "payment": "cash",
+    "commission": 300,
+}
 
 
 def test_add_trip_created(client, db):
@@ -103,17 +125,21 @@ def test_repeat_without_id_does_not_duplicate(client):
 
 # --- validation ---
 
-@pytest.mark.parametrize("patch", [
-    {"amount": 0},
-    {"amount": -100},
-    {"end": NEW["start"]},                       # end == start
-    {"end": "2026-10-01T09:59:00+05:00"},        # end before start
-    {"commission": 2001},                        # commission above amount
-    {"commission": 2000},                        # commission equal to amount
-    {"commission": -1},
-    {"payment": "crypto"},
-    {"start": "2026-10-01T10:00:00", "end": "2026-10-01T10:20:00"},  # no timezone offset
-])
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"amount": 0},
+        {"amount": -100},
+        {"end": NEW["start"]},  # end == start
+        {"end": "2026-10-01T09:59:00+05:00"},  # end before start
+        {"commission": 2001},  # commission above amount
+        {"commission": 2000},  # commission equal to amount
+        {"commission": -1},
+        {"payment": "crypto"},
+        {"start": "2026-10-01T10:00:00", "end": "2026-10-01T10:20:00"},  # no timezone offset
+    ],
+)
 def test_invalid_trip_rejected(client, db, patch):
     r = client.post("/api/trips", json={**NEW, **patch})
     assert r.status_code == 422
@@ -127,7 +153,7 @@ def test_all_field_errors_reported_at_once(client):
     assert fields(r) == {
         "end": "end_before_start",
         "commission": "commission_exceeds_amount",
-        "payment": "literal_error",
+        "payment": "enum",
     }
 
 
@@ -148,11 +174,14 @@ def test_legacy_trip_with_commission_equal_to_amount_is_still_readable(client, d
         conn.execute("ALTER TABLE trips DROP CONSTRAINT trips_commission_check")
         conn.execute(
             "INSERT INTO trips (driver_id, id, start_at, end_at, start_offset_min, end_offset_min,"
-            " amount, payment, commission, shift_id) SELECT driver_id, 'legacy', start_at + interval '3 hours', end_at + interval '3 hours',"
-            " start_offset_min, end_offset_min, 1000, payment, 1000, shift_id FROM trips WHERE id = 't1'"
+            " amount, payment, commission, shift_id) SELECT driver_id, 'legacy',"
+            " start_at + interval '3 hours', end_at + interval '3 hours', start_offset_min,"
+            " end_offset_min, 1000, payment, 1000, shift_id FROM trips WHERE id = 't1'"
         )
-        conn.execute("ALTER TABLE trips ADD CONSTRAINT trips_commission_check"
-                     " CHECK (commission >= 0 AND commission < amount) NOT VALID")
+        conn.execute(
+            "ALTER TABLE trips ADD CONSTRAINT trips_commission_check"
+            " CHECK (commission >= 0 AND commission < amount) NOT VALID"
+        )
     r = client.get("/api/trips", params={"date": "2026-10-01"})
     assert r.status_code == 200
     assert {t["id"] for t in r.json()} == {"t1", "t2", "legacy"}

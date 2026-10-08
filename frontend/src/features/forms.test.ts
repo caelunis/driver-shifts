@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { driverFormSchema } from "./drivers/schema";
-import { shiftFormSchema } from "./shifts/schema";
-import { tripFormSchema } from "./trips/schema";
+import { driverFormSchema } from "@/features/drivers/schema";
+import { shiftFormSchema } from "@/features/shifts/schema";
+import { tripFormSchema } from "@/features/trips/schema";
 
 /** {field: message} of a failed parse; like the form, the first message of each field */
 function errors(result: { success: boolean; error?: { issues: { path: PropertyKey[]; message: string }[] } }) {

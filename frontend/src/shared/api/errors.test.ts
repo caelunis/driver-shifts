@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { api, ApiError } from "./client";
-import { errorMessage, fieldErrorMessage } from "./errors";
+import { api, ApiError } from "@/shared/api/client";
+import { errorMessage, fieldErrorMessage } from "@/shared/api/errors";
 
 const field = (code: string, ctx: Record<string, unknown> = {}, name = "amount") => ({
   field: name,

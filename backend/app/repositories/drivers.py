@@ -1,28 +1,35 @@
 """SQL for driver profiles (`drivers`, 1:1 with a `users` row of role 'driver')."""
+
 from contextlib import contextmanager
 
 from psycopg import Connection
 from psycopg.errors import UniqueViolation
 
-from app.core.errors import PlateTaken
+from app.core.errors import PlateTakenError
 from app.schemas.accounts import DriverInfo, Profile
 
 
 @contextmanager
 def _plate_guard(conn: Connection):
-    """A savepoint that turns a duplicate plate into PlateTaken."""
+    """A savepoint that turns a duplicate plate into PlateTakenError."""
     try:
         with conn.transaction():
             yield
     except UniqueViolation as e:
         if e.diag.constraint_name == "drivers_car_plate_key":
-            raise PlateTaken() from e
+            raise PlateTakenError() from e
         raise
 
 
-def insert_profile(conn: Connection, user_id: int, name: str, car_model: str = "",
-                   car_plate: str | None = None, default_tz: str = "Asia/Almaty",
-                   default_commission_pct: float | None = None) -> None:
+def insert_profile(
+    conn: Connection,
+    user_id: int,
+    name: str,
+    car_model: str = "",
+    car_plate: str | None = None,
+    default_tz: str = "Asia/Almaty",
+    default_commission_pct: float | None = None,
+) -> None:
     with _plate_guard(conn):
         conn.execute(
             "INSERT INTO drivers (user_id, name, car_model, car_plate, default_tz,"
@@ -42,6 +49,16 @@ def get_profile(conn: Connection, user_id: int) -> Profile | None:
     return Profile(**row) if row else None
 
 
+def lock(conn: Connection, driver_id: int) -> None:
+    """Lock the driver's row until the transaction ends.
+
+    Serializes changes to one driver's set of shifts. Without it, concurrent inserts
+    checked by the no-overlap EXCLUDE constraint and the one-open-shift index can
+    deadlock each other instead of one of them failing cleanly.
+    """
+    conn.execute("SELECT 1 FROM drivers WHERE user_id = %s FOR UPDATE", (driver_id,))
+
+
 def commission_pct(conn: Connection, driver_id: int) -> float | None:
     row = conn.execute(
         "SELECT default_commission_pct FROM drivers WHERE user_id = %s", (driver_id,)
@@ -59,9 +76,7 @@ def update_profile(conn: Connection, driver_id: int, changes: dict) -> None:
         return
     assignments = ", ".join(f"{k} = %s" for k in columns)
     with _plate_guard(conn):
-        conn.execute(
-            f"UPDATE drivers SET {assignments} WHERE user_id = %s", (*columns.values(), driver_id)
-        )
+        conn.execute(f"UPDATE drivers SET {assignments} WHERE user_id = %s", (*columns.values(), driver_id))
 
 
 # --- admin: drivers with totals ---
@@ -95,8 +110,7 @@ def list_with_totals(conn: Connection, q: str | None = None) -> list[DriverInfo]
     flt = ""
     if q and q.strip():
         # Plates are stored without spaces, so "123 ABC" finds "123ABC02"
-        flt = ("WHERE d.name ILIKE %s OR u.email ILIKE %s OR d.car_model ILIKE %s"
-               " OR d.car_plate ILIKE %s")
+        flt = "WHERE d.name ILIKE %s OR u.email ILIKE %s OR d.car_model ILIKE %s OR d.car_plate ILIKE %s"
         q = q.strip()
         params = (_like(q),) * 3 + (_like("".join(q.split()).upper()),)
     rows = conn.execute(_WITH_TOTALS.format(filter=flt), params).fetchall()

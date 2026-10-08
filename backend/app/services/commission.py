@@ -1,5 +1,6 @@
 from decimal import ROUND_HALF_UP, Decimal
 
+from app.core.enums import ErrorCode
 from app.core.errors import DomainValidationError
 from app.schemas.trips import TripIn
 
@@ -18,15 +19,20 @@ def resolve_commission(trip: TripIn, pct: float | None) -> TripIn:
     """
     if pct is None:
         if trip.commission is None:
-            raise DomainValidationError("commission", "missing", "Field required")
+            raise DomainValidationError("commission", ErrorCode.MISSING, "Field required")
         return trip
 
     expected = commission_for(trip.amount, pct)
     if trip.commission is not None and trip.commission != expected:
-        raise DomainValidationError("commission", "commission_fixed",
-                                    f"Commission is set by the admin: {expected}",
-                                    expected=expected, pct=pct)
+        raise DomainValidationError(
+            "commission",
+            ErrorCode.COMMISSION_FIXED,
+            f"Commission is set by the admin: {expected}",
+            expected=expected,
+            pct=pct,
+        )
     if expected >= trip.amount:  # tiny amounts, e.g. 1 KZT at 50% rounds up to 1
-        raise DomainValidationError("commission", "commission_exceeds_amount",
-                                    "Commission must be less than the trip amount")
+        raise DomainValidationError(
+            "commission", ErrorCode.COMMISSION_EXCEEDS_AMOUNT, "Commission must be less than the trip amount"
+        )
     return trip.model_copy(update={"commission": expected})

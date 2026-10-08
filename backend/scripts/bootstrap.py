@@ -3,6 +3,7 @@
 - SEED_DEMO=1: demo accounts in an empty database (scripts/seed_demo.py);
 - ADMIN_EMAIL + ADMIN_PASSWORD: the first real admin, if that e-mail is free.
 """
+
 from app.core.config import get_settings
 from app.core.db import open_pool
 from app.services import accounts
@@ -11,7 +12,7 @@ from scripts.seed_demo import seed
 
 def main() -> None:
     settings = get_settings()
-    pool = open_pool(settings.database_url)
+    pool = open_pool(settings.database_url())
     try:
         if settings.seed_demo:
             print("Demo accounts created" if seed(pool) else "Accounts exist; demo seeding skipped")

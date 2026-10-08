@@ -9,8 +9,14 @@ from app.schemas.trips import TripIn
 from app.services import trips
 from tests.factories import create_driver, day_shift
 
-NIGHT = {"id": "n1", "start": "2026-10-02T02:10:00+05:00", "end": "2026-10-02T02:35:00+05:00",
-         "amount": 2800, "payment": "cash", "commission": 420}
+NIGHT = {
+    "id": "n1",
+    "start": "2026-10-02T02:10:00+05:00",
+    "end": "2026-10-02T02:35:00+05:00",
+    "amount": 2800,
+    "payment": "cash",
+    "commission": 420,
+}
 
 
 @pytest.fixture
@@ -52,8 +58,18 @@ def test_same_id_for_different_drivers_is_not_a_conflict(db, driver_id, night_sh
 def test_days_aggregate_by_shift_day(db, driver_id, night_shift):
     trips.add(db, driver_id, night(night_shift))
     third = day_shift(db, driver_id, "2026-10-03", start="09:00", end="11:00")
-    trips.add(db, driver_id, night(third, id="n2", start="2026-10-03T10:00:00+05:00",
-                                   end="2026-10-03T10:30:00+05:00", amount=1000, commission=100))
+    trips.add(
+        db,
+        driver_id,
+        night(
+            third,
+            id="n2",
+            start="2026-10-03T10:00:00+05:00",
+            end="2026-10-03T10:30:00+05:00",
+            amount=1000,
+            commission=100,
+        ),
+    )
     days = [(d.date.isoformat(), d.count, d.net) for d in trips.days(db, driver_id)]
     assert days == [("2026-10-02", 1, 2380), ("2026-10-03", 1, 900)]
 
@@ -61,18 +77,16 @@ def test_days_aggregate_by_shift_day(db, driver_id, night_shift):
 def test_database_rejects_commission_equal_to_amount(db, driver_id, night_shift):
     # Bypass model validation: the database constraint is the last line of defence
     trip = night(night_shift).to_trip().model_copy(update={"commission": NIGHT["amount"]})
-    with pytest.raises(psycopg.errors.CheckViolation):
-        with db.connection() as conn:
-            trips_repo.insert_if_absent(conn, driver_id, trip)
+    with pytest.raises(psycopg.errors.CheckViolation), db.connection() as conn:
+        trips_repo.insert_if_absent(conn, driver_id, trip)
 
 
 def test_database_rejects_a_trip_in_another_drivers_shift(db, driver_id):
     other = create_driver(db, "other@example.com", "horse-battery-9")
     foreign_shift = day_shift(db, other, "2026-10-02", start="02:00", end="10:00")
     trip = night(foreign_shift).to_trip()
-    with pytest.raises(psycopg.errors.ForeignKeyViolation):
-        with db.connection() as conn:
-            trips_repo.insert_if_absent(conn, driver_id, trip)
+    with pytest.raises(psycopg.errors.ForeignKeyViolation), db.connection() as conn:
+        trips_repo.insert_if_absent(conn, driver_id, trip)
 
 
 def test_trips_and_shifts_of_a_deleted_driver_are_gone(db, driver_id, night_shift):

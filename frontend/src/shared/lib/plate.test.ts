@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { carText, formatPlate, normalizePlate } from "./plate";
+import { carText, formatPlate, normalizePlate } from "@/shared/lib/plate";
 
 describe("normalizePlate", () => {
   it.each([

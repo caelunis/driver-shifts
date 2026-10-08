@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { commissionFor, formatMoney, formatPct } from "./money";
-import { plural, tripsText } from "./plural";
+import { commissionFor, formatMoney, formatPct } from "@/shared/lib/money";
+import { plural, tripsText } from "@/shared/lib/plural";
 
 describe("commissionFor", () => {
   // Same cases as the server's tests (backend tests/unit/test_commission_formula.py)

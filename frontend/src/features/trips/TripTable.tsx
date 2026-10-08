@@ -1,6 +1,6 @@
-import type { Trip } from "../../shared/api/types";
-import { formatMoney } from "../../shared/lib/money";
-import { formatDuration, hhmm, isoDay, minutesBetween } from "../../shared/lib/time";
+import type { Trip } from "@/shared/api/types";
+import { formatMoney } from "@/shared/lib/money";
+import { formatDuration, hhmm, isoDay, minutesBetween } from "@/shared/lib/time";
 
 interface Props {
   trips: Trip[];

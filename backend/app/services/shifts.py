@@ -1,11 +1,14 @@
 """Shifts: a driver's working periods. Every trip belongs to a shift."""
+
 from datetime import date, datetime, timedelta
 
 from psycopg.errors import ExclusionViolation, UniqueViolation
 from psycopg_pool import ConnectionPool
 
 from app.core import clock
-from app.core.errors import Conflict, DomainValidationError, NotFound
+from app.core.constants import BACKFILL_WINDOW, CLOCK_SKEW, MAX_SHIFT
+from app.core.enums import ErrorCode, ShiftStatus
+from app.core.errors import ConflictError, DomainValidationError, NotFoundError
 from app.repositories import drivers as drivers_repo
 from app.repositories import shifts as shifts_repo
 from app.repositories import trips as trips_repo
@@ -13,38 +16,38 @@ from app.schemas.common import zone
 from app.schemas.shifts import Shift, ShiftDetail
 from app.services.summary import shift_summary
 
-MAX_SHIFT = timedelta(hours=24)
-# How far back a driver may enter or change shifts; the admin is not limited
-BACKFILL_WINDOW = timedelta(days=7)
-# Tolerance for client clocks that run slightly ahead
-CLOCK_SKEW = timedelta(minutes=5)
-
 
 def check_not_in_future(field: str, value: datetime) -> None:
     if value > clock.now() + CLOCK_SKEW:
-        raise DomainValidationError(field, "in_future", "Time is in the future")
+        raise DomainValidationError(field, ErrorCode.IN_FUTURE, "Time is in the future")
 
 
 def check_within_window(field: str, value: datetime) -> None:
     if value < clock.now() - BACKFILL_WINDOW:
-        raise DomainValidationError(field, "too_old", "Older than the allowed window",
-                                    days=BACKFILL_WINDOW.days)
+        raise DomainValidationError(
+            field, ErrorCode.TOO_OLD, "Older than the allowed window", days=BACKFILL_WINDOW.days
+        )
 
 
 def check_editable(shift: dict) -> None:
     """A driver may change a shift and its trips while it is open or for 7 days after
     it ended; older shifts are only changed by the admin."""
     if shift["end"] is not None and shift["end"] < clock.now() - BACKFILL_WINDOW:
-        raise Conflict("shift_locked", "The shift ended more than 7 days ago",
-                       days=BACKFILL_WINDOW.days)
+        raise ConflictError(
+            ErrorCode.SHIFT_LOCKED, "The shift ended more than 7 days ago", days=BACKFILL_WINDOW.days
+        )
 
 
 def _check_end(start: datetime, end: datetime) -> None:
     if end <= start:
-        raise DomainValidationError("end", "end_before_start", "End must be later than start")
+        raise DomainValidationError("end", ErrorCode.END_BEFORE_START, "End must be later than start")
     if end - start > MAX_SHIFT:
-        raise DomainValidationError("end", "shift_too_long", "A shift lasts at most 24 hours",
-                                    hours=24)
+        raise DomainValidationError(
+            "end",
+            ErrorCode.SHIFT_TOO_LONG,
+            "A shift lasts at most 24 hours",
+            hours=MAX_SHIFT // timedelta(hours=1),
+        )
     check_not_in_future("end", end)
 
 
@@ -54,17 +57,31 @@ def _to_model(shift: dict, trips: list, detail: bool = False) -> Shift:
     model = ShiftDetail if detail else Shift
     extra = {"trips": trips} if detail else {}
     return model(
-        id=shift["id"], start=shift["start"], end=shift["end"],
-        status="open" if shift["end"] is None else "closed",
-        local_day=shift["local_day"], note=shift["note"],
-        summary=shift_summary(trips, shift["start"], end), **extra,
+        id=shift["id"],
+        start=shift["start"],
+        end=shift["end"],
+        status=ShiftStatus.OPEN if shift["end"] is None else ShiftStatus.CLOSED,
+        local_day=shift["local_day"],
+        note=shift["note"],
+        summary=shift_summary(trips, shift["start"], end),
+        **extra,
     )
 
 
-def start(pool: ConnectionPool, driver_id: int, start_at: datetime | None = None,
-          end_at: datetime | None = None, note: str = "", *, by_admin: bool = False) -> Shift:
+def start(
+    pool: ConnectionPool,
+    driver_id: int,
+    start_at: datetime | None = None,
+    end_at: datetime | None = None,
+    note: str = "",
+    *,
+    by_admin: bool = False,
+) -> Shift:
     """Start a shift now, at `start_at`, or enter a finished past shift (`start_at` + `end_at`)."""
     with pool.connection() as conn:
+        # One change to this driver's shifts at a time: a concurrent start waits here
+        # and then sees the open shift, instead of racing it into a deadlock
+        drivers_repo.lock(conn, driver_id)
         if start_at is None:
             tz = zone(drivers_repo.get_profile(conn, driver_id).default_tz)
             start_at = clock.now().astimezone(tz)
@@ -74,26 +91,25 @@ def start(pool: ConnectionPool, driver_id: int, start_at: datetime | None = None
         if end_at is not None:
             _check_end(start_at, end_at)
         elif shifts_repo.get_open(conn, driver_id):
-            raise Conflict("shift_already_open", "Close the open shift first")
+            raise ConflictError(ErrorCode.SHIFT_ALREADY_OPEN, "Close the open shift first")
         try:
             with conn.transaction():
                 shift = shifts_repo.insert(conn, driver_id, start_at, end_at, note)
-        except (ExclusionViolation, UniqueViolation):
-            # Also covers a race with another request that opened a shift meanwhile
-            raise Conflict("shift_overlap", "Overlaps another shift of this driver")
+        except (ExclusionViolation, UniqueViolation) as e:
+            # An overlap with an existing shift; a concurrent start is already serialized above
+            raise ConflictError(ErrorCode.SHIFT_OVERLAP, "Overlaps another shift of this driver") from e
         return _to_model(shift, [])
 
 
-def close(pool: ConnectionPool, driver_id: int, shift_id: int,
-          end_at: datetime | None = None) -> Shift:
+def close(pool: ConnectionPool, driver_id: int, shift_id: int, end_at: datetime | None = None) -> Shift:
     """Close an open shift. Allowed however long ago it started: the end time is checked
     against the 24-hour limit instead, so a forgotten shift can always be closed."""
     with pool.connection() as conn:
         shift = shifts_repo.get(conn, driver_id, shift_id, for_update=True)
         if shift is None:
-            raise NotFound()
+            raise NotFoundError()
         if shift["end"] is not None:
-            raise Conflict("shift_already_closed", "The shift is already closed")
+            raise ConflictError(ErrorCode.SHIFT_ALREADY_CLOSED, "The shift is already closed")
         if end_at is None:
             end_at = clock.now().astimezone(shift["start"].tzinfo)
         _check_end(shift["start"], end_at)
@@ -106,23 +122,31 @@ def _check_holds_trips(conn, shift_id: int, start: datetime, end: datetime | Non
     """Every trip of the shift stays inside [start, end]."""
     first, last = shifts_repo.trips_span(conn, shift_id)
     if first is not None and start > first:
-        raise DomainValidationError("start", "after_first_trip",
-                                    "The shift cannot start after its first trip",
-                                    first_trip_start=first.isoformat())
+        raise DomainValidationError(
+            "start",
+            ErrorCode.AFTER_FIRST_TRIP,
+            "The shift cannot start after its first trip",
+            first_trip_start=first.isoformat(),
+        )
     if last is not None and end is not None and end < last:
-        raise DomainValidationError("end", "before_last_trip",
-                                    "The shift cannot end before its last trip",
-                                    last_trip_end=last.isoformat())
+        raise DomainValidationError(
+            "end",
+            ErrorCode.BEFORE_LAST_TRIP,
+            "The shift cannot end before its last trip",
+            last_trip_end=last.isoformat(),
+        )
 
 
-def update(pool: ConnectionPool, driver_id: int, shift_id: int, changes: dict, *,
-           by_admin: bool = False) -> Shift:
+def update(
+    pool: ConnectionPool, driver_id: int, shift_id: int, changes: dict, *, by_admin: bool = False
+) -> Shift:
     """Change start, end or note. `changes` holds only the fields the client sent;
     `end: None` reopens the shift."""
     with pool.connection() as conn:
+        drivers_repo.lock(conn, driver_id)  # driver first, then the shift: the order start() uses
         shift = shifts_repo.get(conn, driver_id, shift_id, for_update=True)
         if shift is None:
-            raise NotFound()
+            raise NotFoundError()
         if not by_admin:
             check_editable(shift)
         start_at = changes.get("start", shift["start"])
@@ -139,21 +163,24 @@ def update(pool: ConnectionPool, driver_id: int, shift_id: int, changes: dict, *
         elif (shift["end"] is not None or "start" in changes) and clock.now() - start_at > MAX_SHIFT:
             # Reopening, or moving an open shift's start back: it would already be longer
             # than 24 hours. A forgotten open shift is left alone: it can still be closed.
-            raise DomainValidationError("start" if "start" in changes else "end",
-                                        "shift_too_long", "A shift lasts at most 24 hours",
-                                        hours=24)
+            raise DomainValidationError(
+                "start" if "start" in changes else "end",
+                ErrorCode.SHIFT_TOO_LONG,
+                "A shift lasts at most 24 hours",
+                hours=MAX_SHIFT // timedelta(hours=1),
+            )
         _check_holds_trips(conn, shift_id, start_at, end_at)
         if end_at is None and shift["end"] is not None and shifts_repo.get_open(conn, driver_id):
-            raise Conflict("shift_already_open", "Close the open shift first")
+            raise ConflictError(ErrorCode.SHIFT_ALREADY_OPEN, "Close the open shift first")
 
         try:
             with conn.transaction():
                 updated = shifts_repo.update(conn, shift_id, start_at, end_at, note)
-        except UniqueViolation:
-            raise Conflict("shift_already_open", "Close the open shift first")
-        except ExclusionViolation:
+        except UniqueViolation as e:
+            raise ConflictError(ErrorCode.SHIFT_ALREADY_OPEN, "Close the open shift first") from e
+        except ExclusionViolation as e:
             # An open shift extends to infinity, so only the latest shift can be reopened
-            raise Conflict("shift_overlap", "Overlaps another shift of this driver")
+            raise ConflictError(ErrorCode.SHIFT_OVERLAP, "Overlaps another shift of this driver") from e
         return _to_model(updated, trips_repo.for_shifts(conn, [shift_id]))
 
 
@@ -162,7 +189,7 @@ def delete(pool: ConnectionPool, driver_id: int, shift_id: int, *, by_admin: boo
     with pool.connection() as conn:
         shift = shifts_repo.get(conn, driver_id, shift_id, for_update=True)
         if shift is None:
-            raise NotFound()
+            raise NotFoundError()
         if not by_admin:
             check_editable(shift)
         shifts_repo.delete(conn, shift_id)
@@ -172,7 +199,7 @@ def get(pool: ConnectionPool, driver_id: int, shift_id: int) -> ShiftDetail:
     with pool.connection() as conn:
         shift = shifts_repo.get(conn, driver_id, shift_id)
         if shift is None:
-            raise NotFound()
+            raise NotFoundError()
         return _to_model(shift, trips_repo.for_shifts(conn, [shift_id]), detail=True)
 
 

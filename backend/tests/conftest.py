@@ -6,22 +6,59 @@ from pathlib import Path
 
 import psycopg
 import pytest
+from pydantic import ValidationError
 
 from app.core import clock
+from app.core.config import Settings, get_settings
 from app.core.db import open_pool
 
 BACKEND = Path(__file__).resolve().parent.parent
-TEST_DATABASE_URL = os.environ.get(
-    "TEST_DATABASE_URL", "postgresql://shifts:shifts@127.0.0.1:5433/shifts_test"
-)
+
+
+def _settings() -> Settings | None:
+    try:
+        return get_settings()
+    except ValidationError:
+        return None
+
+
+# The same POSTGRES_* settings as the app (environment or .env), with the test database
+SETTINGS = _settings()
+TEST_DATABASE_URL = SETTINGS.database_url(SETTINGS.postgres_test_db) if SETTINGS else ""
+
+
+def db_env(**extra: str) -> dict[str, str]:
+    """Environment for a subprocess that should use the test database."""
+    assert SETTINGS is not None
+    return {
+        "PATH": os.environ["PATH"],
+        "POSTGRES_HOST": SETTINGS.postgres_host,
+        "POSTGRES_PORT": str(SETTINGS.postgres_port),
+        "POSTGRES_USER": SETTINGS.postgres_user,
+        "POSTGRES_PASSWORD": SETTINGS.postgres_password.get_secret_value(),
+        "POSTGRES_DB": SETTINGS.postgres_test_db,
+        # Explicit, so values from a developer's .env cannot leak into the test
+        "SEED_DEMO": "0",
+        "ADMIN_EMAIL": "",
+        "ADMIN_PASSWORD": "",
+        **extra,
+    }
 
 
 def dbmate(url: str, *args: str) -> subprocess.CompletedProcess:
     """Run dbmate against `url` with the project's migrations."""
     return subprocess.run(
-        ["dbmate", "--url", url.replace("postgresql://", "postgres://", 1) + "?sslmode=disable",
-         "--migrations-dir", str(BACKEND / "db" / "migrations"), "--no-dump-schema", *args],
-        capture_output=True, text=True,
+        [
+            "dbmate",
+            "--url",
+            url.replace("postgresql://", "postgres://", 1) + "?sslmode=disable",
+            "--migrations-dir",
+            str(BACKEND / "db" / "migrations"),
+            "--no-dump-schema",
+            *args,
+        ],
+        capture_output=True,
+        text=True,
     )
 
 
@@ -30,13 +67,18 @@ def pool():
     """The test database, rebuilt from the migrations once per test run."""
     if shutil.which("dbmate") is None:
         pytest.skip("dbmate is not installed: brew install dbmate")
+    if SETTINGS is None:
+        pytest.skip("POSTGRES_* settings are missing: cp .env.example .env")
     try:
         with psycopg.connect(TEST_DATABASE_URL, autocommit=True, connect_timeout=3) as conn:
             conn.execute("DROP SCHEMA public CASCADE")
             conn.execute("CREATE SCHEMA public")
     except psycopg.OperationalError as e:
-        pytest.skip(f"PostgreSQL is not reachable at {TEST_DATABASE_URL} ({e.__class__.__name__}). "
-                    "Start it with: docker compose up -d db")
+        pytest.skip(
+            f"PostgreSQL is not reachable at {SETTINGS.postgres_host}:{SETTINGS.postgres_port}"
+            f" ({e.__class__.__name__}). "
+            "Start it with: docker compose up -d db"
+        )
     result = dbmate(TEST_DATABASE_URL, "up")
     assert result.returncode == 0, result.stderr
     p = open_pool(TEST_DATABASE_URL, timeout=3)
@@ -55,6 +97,7 @@ def db(pool):
 @pytest.fixture
 def driver_id(db):
     from tests.factories import create_driver
+
     return create_driver(db, "driver@example.com", "horse-battery-9", name="Test driver")
 
 

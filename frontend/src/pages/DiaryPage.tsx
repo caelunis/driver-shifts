@@ -1,10 +1,10 @@
 import { Navigate, useNavigate, useParams } from "react-router";
 
-import { useMe } from "../features/auth/api";
-import { DayView } from "../features/diary/DayView";
-import { driverScope } from "../features/diary/scope";
-import { DEFAULT_TZ } from "../shared/lib/timezones";
-import { todayIn } from "../shared/lib/time";
+import { useMe } from "@/features/auth/api";
+import { DayView } from "@/features/diary/DayView";
+import { driverScope } from "@/features/diary/scope";
+import { DEFAULT_TZ } from "@/shared/lib/timezones";
+import { todayIn } from "@/shared/lib/time";
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 

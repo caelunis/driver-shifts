@@ -1,13 +1,18 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from app.main import create_app
 from tests.api import error, field_ctx
 from tests.factories import create_driver, day_shift, set_commission_pct
-from app.main import create_app
 
 # shift_id 1: the day shift created by the `driver` fixture
-TRIP = {"shift_id": 1, "start": "2026-10-01T08:10:00+05:00", "end": "2026-10-01T08:32:00+05:00",
-        "amount": 2350, "payment": "card"}
+TRIP = {
+    "shift_id": 1,
+    "start": "2026-10-01T08:10:00+05:00",
+    "end": "2026-10-01T08:32:00+05:00",
+    "amount": 2350,
+    "payment": "card",
+}
 
 
 @pytest.fixture
@@ -28,6 +33,7 @@ def set_pct(db, driver_id, pct):
 
 
 # --- percent set by the admin: the server computes the commission ---
+
 
 def test_commission_is_computed_when_omitted(db, driver, driver_id):
     set_pct(db, driver_id, 15)
@@ -73,6 +79,7 @@ def test_percent_change_does_not_touch_old_trips(db, driver, driver_id):
 
 
 # --- no percent: the driver enters the commission ---
+
 
 def test_manual_commission_without_percent(driver):
     r = driver.post("/api/trips", json={**TRIP, "commission": 100})

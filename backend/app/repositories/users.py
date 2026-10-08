@@ -1,13 +1,15 @@
 """SQL for accounts (`users`) and their sessions."""
+
 from datetime import datetime
 
 from psycopg import Connection
 from psycopg.errors import UniqueViolation
 
-from app.core.errors import EmailTaken
+from app.core.enums import Role
+from app.core.errors import EmailTakenError
 
 
-def insert(conn: Connection, email: str, password_hash: str, role: str) -> int:
+def insert(conn: Connection, email: str, password_hash: str, role: Role) -> int:
     try:
         # A savepoint, so a duplicate does not abort the caller's whole transaction
         with conn.transaction():
@@ -15,8 +17,8 @@ def insert(conn: Connection, email: str, password_hash: str, role: str) -> int:
                 "INSERT INTO users (email, password_hash, role) VALUES (%s, %s, %s) RETURNING id",
                 (email.lower(), password_hash, role),
             ).fetchone()
-    except UniqueViolation:
-        raise EmailTaken(email)
+    except UniqueViolation as e:
+        raise EmailTakenError(email) from e
     return row["id"]
 
 
@@ -39,12 +41,13 @@ def delete_driver(conn: Connection, user_id: int) -> bool:
     """Delete a driver account (never an admin). The profile, trips and sessions go
     with it via ON DELETE CASCADE."""
     row = conn.execute(
-        "DELETE FROM users WHERE id = %s AND role = 'driver' RETURNING id", (user_id,)
+        "DELETE FROM users WHERE id = %s AND role = %s RETURNING id", (user_id, Role.DRIVER)
     ).fetchone()
     return row is not None
 
 
 # --- sessions ---
+
 
 def insert_session(conn: Connection, token_hash: str, user_id: int, expires_at: datetime) -> None:
     conn.execute(

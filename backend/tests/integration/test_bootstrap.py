@@ -1,4 +1,3 @@
-import os
 import subprocess
 import sys
 
@@ -7,7 +6,7 @@ import pytest
 
 from app.services import accounts
 from scripts.seed_demo import DEMO_ADMIN, DEMO_DRIVERS, seed
-from tests.conftest import BACKEND, TEST_DATABASE_URL
+from tests.conftest import BACKEND, db_env
 from tests.factories import create_driver
 
 DEMO_EMAILS = {DEMO_ADMIN[0]: "admin", **{d.email: "driver" for d, _ in DEMO_DRIVERS}}
@@ -20,8 +19,12 @@ def roles(db):
 
 def run_script(module: str, *args: str, stdin: str = "", **env) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, "-m", module, *args], input=stdin, capture_output=True, text=True,
-        cwd=BACKEND, env={"PATH": os.environ["PATH"], "DATABASE_URL": TEST_DATABASE_URL, **env},
+        [sys.executable, "-m", module, *args],
+        input=stdin,
+        capture_output=True,
+        text=True,
+        cwd=BACKEND,
+        env=db_env(**env),
     )
 
 
@@ -56,6 +59,7 @@ def test_ensure_admin_never_promotes_existing_driver(db):
 
 # --- demo data ---
 
+
 def test_seed_on_empty_database(db):
     assert seed(db) is True
     assert roles(db) == DEMO_EMAILS
@@ -79,9 +83,11 @@ def test_deleted_demo_account_does_not_come_back(db):
 
 # --- scripts ---
 
+
 def test_bootstrap_script(db):
-    r = run_script("scripts.bootstrap", SEED_DEMO="1",
-                   ADMIN_EMAIL="owner@example.com", ADMIN_PASSWORD="owner-pass-1")
+    r = run_script(
+        "scripts.bootstrap", SEED_DEMO="1", ADMIN_EMAIL="owner@example.com", ADMIN_PASSWORD="owner-pass-1"
+    )
     assert r.returncode == 0, r.stderr
     assert roles(db) == {**DEMO_EMAILS, "owner@example.com": "admin"}
     again = run_script("scripts.bootstrap", SEED_DEMO="1")  # idempotent

@@ -1,12 +1,12 @@
 import { useDeferredValue, useState } from "react";
 import { Link, useNavigate } from "react-router";
 
-import { useDrivers } from "../features/drivers/api";
-import { DriverDialog } from "../features/drivers/DriverDialog";
-import { errorMessage } from "../shared/api/errors";
-import { formatMoney, formatPct } from "../shared/lib/money";
-import { carText } from "../shared/lib/plate";
-import { formatDay } from "../shared/lib/time";
+import { useDrivers } from "@/features/drivers/api";
+import { DriverDialog } from "@/features/drivers/DriverDialog";
+import { errorMessage } from "@/shared/api/errors";
+import { formatMoney, formatPct } from "@/shared/lib/money";
+import { carText } from "@/shared/lib/plate";
+import { formatDay } from "@/shared/lib/time";
 
 export function DriversPage() {
   const [q, setQ] = useState("");

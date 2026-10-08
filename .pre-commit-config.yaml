@@ -1,0 +1,45 @@
+# pre-commit install   (once per clone; then the hooks run on every commit)
+# pre-commit run --all-files
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+        exclude: ^frontend/tsconfig\.json$  # JSON with comments allowed by TypeScript
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+      - id: detect-private-key
+
+  # Ruff from the backend's own environment, so the hooks use the version pinned in uv.lock;
+  # ruff finds backend/pyproject.toml for the files under backend/ by itself
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check (backend)
+        entry: uv run --project backend ruff check --fix
+        language: system
+        types: [python]
+        files: ^backend/
+      - id: ruff-format
+        name: ruff format (backend)
+        entry: uv run --project backend ruff format
+        language: system
+        types: [python]
+        files: ^backend/
+      - id: uv-lock
+        name: uv.lock matches pyproject.toml
+        entry: uv lock --check --project backend
+        language: system
+        files: ^backend/(pyproject\.toml|uv\.lock)$
+        pass_filenames: false
+      - id: frontend-typecheck
+        name: tsc (frontend)
+        entry: bash -c 'cd frontend && npx tsc --noEmit -p tsconfig.json'
+        language: system
+        files: ^frontend/.*\.(ts|tsx)$
+        pass_filenames: false

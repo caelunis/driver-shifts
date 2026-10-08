@@ -1,6 +1,6 @@
 import { expect, request, type APIRequestContext, type Page } from "@playwright/test";
 
-import { addDays, todayIn } from "../src/shared/lib/time";
+import { addDays, todayIn } from "@/shared/lib/time";
 
 export const ADMIN = {
   email: process.env.E2E_ADMIN_EMAIL ?? "admin@example.com",

@@ -1,6 +1,6 @@
 import { Navigate, Outlet, useLocation } from "react-router";
 
-import { useMe } from "../features/auth/api";
+import { useMe } from "@/features/auth/api";
 
 export const homeFor = (role: "driver" | "admin") => (role === "admin" ? "/admin/drivers" : "/day");
 

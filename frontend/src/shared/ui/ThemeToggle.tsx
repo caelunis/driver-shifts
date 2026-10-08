@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { applyTheme, NEXT_THEME, savedTheme, type Theme } from "../lib/theme";
+import { applyTheme, NEXT_THEME, savedTheme, type Theme } from "@/shared/lib/theme";
 
 const LABELS: Record<Theme, { text: string; title: string }> = {
   light: { text: "☀️ Светлая", title: "Тема: светлая. Нажмите для тёмной" },

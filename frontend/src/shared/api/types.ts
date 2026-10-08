@@ -1,5 +1,5 @@
 // Shorthands for the generated OpenAPI types (schema.d.ts; regenerate with `npm run gen:api`).
-import type { components } from "./schema";
+import type { components } from "@/shared/api/schema";
 
 type Schemas = components["schemas"];
 

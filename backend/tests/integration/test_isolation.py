@@ -1,11 +1,17 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from tests.factories import create_driver, day_shift
 from app.main import create_app
+from tests.factories import create_driver, day_shift
 
-TRIP = {"id": "t1", "start": "2026-10-01T08:10:00+05:00", "end": "2026-10-01T08:32:00+05:00",
-        "amount": 2400, "payment": "card", "commission": 360}
+TRIP = {
+    "id": "t1",
+    "start": "2026-10-01T08:10:00+05:00",
+    "end": "2026-10-01T08:32:00+05:00",
+    "amount": 2400,
+    "payment": "card",
+    "commission": 360,
+}
 DAY = {"date": "2026-10-01"}
 
 
@@ -38,6 +44,7 @@ def bob(app, db):
 
 # --- isolation between drivers ---
 
+
 def test_driver_does_not_see_other_drivers_trips(alice, bob):
     assert alice.post("/api/trips", json=trip(alice)).status_code == 201
     assert bob.get("/api/trips", params=DAY).json() == []
@@ -56,12 +63,15 @@ def test_same_trip_id_for_two_drivers_via_api(alice, bob):
     assert bob.get("/api/trips", params=DAY).json()[0]["amount"] == 9999
 
 
-@pytest.mark.parametrize("method, path, kwargs", [
-    ("GET", "/api/days", {}),
-    ("GET", "/api/trips", {"params": DAY}),
-    ("GET", "/api/summary", {"params": DAY}),
-    ("POST", "/api/trips", {"json": TRIP}),
-])
+@pytest.mark.parametrize(
+    "method, path, kwargs",
+    [
+        ("GET", "/api/days", {}),
+        ("GET", "/api/trips", {"params": DAY}),
+        ("GET", "/api/summary", {"params": DAY}),
+        ("POST", "/api/trips", {"json": TRIP}),
+    ],
+)
 def test_trip_endpoints_require_auth(app, db, method, path, kwargs):
     r = TestClient(app).request(method, path, **kwargs)
     assert r.status_code == 401

@@ -8,6 +8,17 @@ from zoneinfo import ZoneInfo, available_timezones
 from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict, Field
 from pydantic_core import PydanticCustomError
 
+from app.core.constants import (
+    CAR_MODEL_MAX_LENGTH,
+    COMMISSION_PCT_MAX,
+    NAME_MAX_LENGTH,
+    PASSWORD_MAX_LENGTH,
+    PASSWORD_MIN_LENGTH,
+    PLATE_LOOKALIKES,
+    PLATE_PATTERN,
+    TZ_NAME_MAX_LENGTH,
+)
+from app.core.enums import ErrorCode
 from app.core.passwords import is_common
 
 
@@ -20,7 +31,7 @@ class StrictModel(BaseModel):
 
 def _require_tz(v: datetime) -> datetime:
     if v.tzinfo is None:
-        raise PydanticCustomError("timezone_required", "Timezone offset is required, e.g. +05:00")
+        raise PydanticCustomError(ErrorCode.TIMEZONE_REQUIRED, "Timezone offset is required, e.g. +05:00")
     return v
 
 
@@ -28,7 +39,7 @@ def _require_tz(v: datetime) -> datetime:
 AwareDatetime = Annotated[datetime, AfterValidator(_require_tz)]
 
 # Below 100: commission must stay strictly less than the trip amount
-CommissionPct = Annotated[float, Field(ge=0, lt=100)]
+CommissionPct = Annotated[float, Field(ge=0, lt=COMMISSION_PCT_MAX)]
 
 
 @lru_cache(maxsize=1)
@@ -38,13 +49,13 @@ def _zones() -> frozenset[str]:
 
 def _check_zone(v: str) -> str:
     if v not in _zones():
-        raise PydanticCustomError("unknown_timezone", "Unknown timezone, expected e.g. Asia/Almaty")
+        raise PydanticCustomError(ErrorCode.UNKNOWN_TIMEZONE, "Unknown timezone, expected e.g. Asia/Almaty")
     return v
 
 
 # IANA timezone name. Unlike a fixed offset it follows the zone's rules over time
 # (Kazakhstan, for one, moved to a single +05:00 zone in 2024).
-IanaTz = Annotated[str, Field(max_length=64), AfterValidator(_check_zone)]
+IanaTz = Annotated[str, Field(max_length=TZ_NAME_MAX_LENGTH), AfterValidator(_check_zone)]
 
 
 def zone(name: str) -> ZoneInfo:
@@ -57,38 +68,42 @@ def _clean_text(v: str) -> str:
         return v
     v = unicodedata.normalize("NFC", v)
     if any(unicodedata.category(ch) in ("Cc", "Cf") for ch in v):
-        raise PydanticCustomError("invalid_characters", "Contains control or invisible characters")
+        raise PydanticCustomError(ErrorCode.INVALID_CHARACTERS, "Contains control or invisible characters")
     return " ".join(v.split())
 
 
-def _max_100(v: str) -> str:
+def _max_length(limit: int):
     # Checked here rather than with Field(max_length): after the BeforeValidator pydantic
     # would report a generic "too_long" instead of the usual string error
-    if len(v) > 100:
-        raise PydanticCustomError("string_too_long",
-                                  "String should have at most {max_length} characters",
-                                  {"max_length": 100})
-    return v
+    def check(v: str) -> str:
+        if len(v) > limit:
+            raise PydanticCustomError(
+                ErrorCode.STRING_TOO_LONG,
+                "String should have at most {max_length} characters",
+                {"max_length": limit},
+            )
+        return v
+
+    return check
 
 
 def _person_name(v: str) -> str:
     if not v:
-        raise PydanticCustomError("blank", "Name must not be blank")
+        raise PydanticCustomError(ErrorCode.BLANK, "Name must not be blank")
     if not any(ch.isalpha() for ch in v):
-        raise PydanticCustomError("name_without_letters", "Name must contain letters")
-    return _max_100(v)
+        raise PydanticCustomError(ErrorCode.NAME_WITHOUT_LETTERS, "Name must contain letters")
+    return _max_length(NAME_MAX_LENGTH)(v)
 
 
 # A person's name: letters required, surrounding and repeated spaces removed
 PersonName = Annotated[str, BeforeValidator(_clean_text), AfterValidator(_person_name)]
 # Free text that is shown to other people, e.g. a car model
-CleanText = Annotated[str, BeforeValidator(_clean_text), AfterValidator(_max_100)]
+CleanText = Annotated[str, BeforeValidator(_clean_text), AfterValidator(_max_length(CAR_MODEL_MAX_LENGTH))]
 
-# Kazakhstan plates since 2012: 3 digits, 2-3 letters, a 2-digit region code (01-20),
-# e.g. 123 ABC 02. Cyrillic letters that look Latin are accepted and converted,
-# since drivers type them on a Russian keyboard.
-_LOOKALIKES = str.maketrans("АВЕКМНОРСТУХ", "ABEKMHOPCTYX")
-_PLATE = re.compile(r"^\d{3}[A-Z]{2,3}(0[1-9]|1\d|20)$")
+# Kazakhstan plates, e.g. 123 ABC 02. Cyrillic letters that look Latin are accepted
+# and converted, since drivers type them on a Russian keyboard.
+_LOOKALIKES = str.maketrans(*PLATE_LOOKALIKES)
+_PLATE = re.compile(PLATE_PATTERN)
 
 
 def _normalize_plate(v):
@@ -96,7 +111,7 @@ def _normalize_plate(v):
         return v
     plate = re.sub(r"[\s-]", "", v).upper().translate(_LOOKALIKES)
     if not _PLATE.match(plate):
-        raise PydanticCustomError("invalid_plate", "Expected a Kazakhstan plate, e.g. 123 ABC 02")
+        raise PydanticCustomError(ErrorCode.INVALID_PLATE, "Expected a Kazakhstan plate, e.g. 123 ABC 02")
     return plate
 
 
@@ -108,9 +123,9 @@ def check_password(password: str, email: str | None) -> None:
     """Raises PydanticCustomError for a password that is easy to guess."""
     lowered = password.lower()
     if email and (lowered == email.lower() or lowered == email.split("@")[0].lower()):
-        raise PydanticCustomError("password_like_email", "Password must differ from the email")
+        raise PydanticCustomError(ErrorCode.PASSWORD_LIKE_EMAIL, "Password must differ from the email")
     if is_common(password):
-        raise PydanticCustomError("password_too_common", "This password is too common")
+        raise PydanticCustomError(ErrorCode.PASSWORD_TOO_COMMON, "This password is too common")
 
 
-Password = Annotated[str, Field(min_length=8, max_length=128)]
+Password = Annotated[str, Field(min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH)]

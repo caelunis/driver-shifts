@@ -1,4 +1,4 @@
-import { formatOffset, offsetMinutes } from "./time";
+import { formatOffset, offsetMinutes } from "@/shared/lib/time";
 
 export const DEFAULT_TZ = "Asia/Almaty";
 

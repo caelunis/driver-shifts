@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
@@ -7,6 +9,8 @@ const API_TARGET = process.env.API_TARGET ?? "http://127.0.0.1:8080";
 
 export default defineConfig({
   plugins: [react()],
+  // Absolute imports: "@/shared/lib/time" instead of "../../shared/lib/time"
+  resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   build: {
     rolldownOptions: {
       output: {

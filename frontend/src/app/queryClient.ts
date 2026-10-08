@@ -1,7 +1,7 @@
 import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
 
-import { meKey } from "../features/auth/api";
-import { ApiError } from "../shared/api/client";
+import { meKey } from "@/features/auth/api";
+import { ApiError } from "@/shared/api/client";
 
 // Any 401 means the session is gone (expired, or ended by a password change):
 // forgetting the profile sends the user to the login screen.

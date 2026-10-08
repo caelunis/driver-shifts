@@ -5,6 +5,7 @@
 Seeds only a database without any accounts, so it is safe to run on every start
 and never brings back accounts that were deleted later.
 """
+
 import json
 from datetime import datetime
 from pathlib import Path
@@ -21,12 +22,21 @@ from app.services import accounts, shifts, trips
 DEMO_SHIFTS = Path(__file__).with_name("data") / "demo_shifts.json"
 
 DEMO_ADMIN = ("admin@example.com", "admin12345")
+# Demo credentials are public on purpose: they are printed in the README
 DEMO_DRIVERS = [
     # (account, sample shifts file or None)
     (DriverCreate(email="demo@example.com", password="demo12345", name="Демо-водитель"), DEMO_SHIFTS),
-    (DriverCreate(email="erlan@example.com", password="erlan12345", name="Ерлан Сейтжанов",
-                  car_model="Hyundai Accent", car_plate="777 AAA 02",
-                  default_commission_pct=15), None),
+    (
+        DriverCreate(
+            email="erlan@example.com",
+            password="erlan12345",
+            name="Ерлан Сейтжанов",
+            car_model="Hyundai Accent",
+            car_plate="777 AAA 02",
+            default_commission_pct=15,
+        ),
+        None,
+    ),
 ]
 
 
@@ -52,7 +62,7 @@ def seed(pool: ConnectionPool) -> bool:
 
 
 def main() -> None:
-    pool = open_pool(get_settings().database_url)
+    pool = open_pool(get_settings().database_url())
     try:
         print("Demo accounts created" if seed(pool) else "Accounts exist; demo seeding skipped")
     finally:

@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 
-import { ADMIN, apiAs, createDriver, deleteDriver, loginUi, PASSWORD, pastDay, unique } from "./helpers";
+import { ADMIN, apiAs, createDriver, deleteDriver, loginUi, PASSWORD, pastDay, unique } from "@e2e/helpers";
 
 let admin: APIRequestContext;
 const cleanup: number[] = [];

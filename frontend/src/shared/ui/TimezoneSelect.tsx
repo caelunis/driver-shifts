@@ -1,6 +1,6 @@
 import { forwardRef, useMemo, type SelectHTMLAttributes } from "react";
 
-import { allZones, KZ_ZONES, zoneLabel } from "../lib/timezones";
+import { allZones, KZ_ZONES, zoneLabel } from "@/shared/lib/timezones";
 
 /** IANA zones, Kazakhstan's first. */
 export const TimezoneSelect = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(

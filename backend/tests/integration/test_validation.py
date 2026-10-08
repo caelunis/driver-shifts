@@ -1,4 +1,5 @@
 """Stricter trip rules and the single error format."""
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -6,8 +7,15 @@ from app.main import create_app
 from tests.api import code, error
 from tests.factories import day_shift
 
-TRIP = {"id": "t1", "shift_id": 1, "start": "2026-10-01T08:10:00+05:00",
-        "end": "2026-10-01T08:32:00+05:00", "amount": 2400, "payment": "card", "commission": 360}
+TRIP = {
+    "id": "t1",
+    "shift_id": 1,
+    "start": "2026-10-01T08:10:00+05:00",
+    "end": "2026-10-01T08:32:00+05:00",
+    "amount": 2400,
+    "payment": "card",
+    "commission": 360,
+}
 
 
 @pytest.fixture
@@ -29,13 +37,18 @@ def at(time: str) -> str:
 
 # --- trips ---
 
-@pytest.mark.parametrize("start, end, expected", [
-    ("08:10:00", "08:10:30", "trip_too_short"),
-    ("08:00:00", "14:00:01", "trip_too_long"),
-])
+
+@pytest.mark.parametrize(
+    "start, end, expected",
+    [
+        ("08:10:00", "08:10:30", "trip_too_short"),
+        ("08:00:00", "14:00:01", "trip_too_long"),
+    ],
+)
 def test_trip_duration_bounds(driver, start, end, expected):
-    r = driver.post("/api/trips", json={**TRIP, "start": f"2026-10-01T{start}+05:00",
-                                        "end": f"2026-10-01T{end}+05:00"})
+    r = driver.post(
+        "/api/trips", json={**TRIP, "start": f"2026-10-01T{start}+05:00", "end": f"2026-10-01T{end}+05:00"}
+    )
     assert r.status_code == 422 and error(r) == ("end", expected)
 
 
@@ -77,11 +90,14 @@ def test_resending_a_trip_is_still_idempotent(driver):
 def test_database_rejects_overlap_too(db, driver):
     driver.post("/api/trips", json=TRIP)
     import psycopg
+
     with pytest.raises(psycopg.errors.ExclusionViolation), db.connection() as conn:
-        conn.execute("INSERT INTO trips (driver_id, id, shift_id, start_at, end_at,"
-                     " start_offset_min, end_offset_min, amount, payment, commission)"
-                     " SELECT driver_id, 'x', shift_id, start_at, end_at, 300, 300, 100, 'cash', 0"
-                     " FROM trips WHERE id = 't1'")
+        conn.execute(
+            "INSERT INTO trips (driver_id, id, shift_id, start_at, end_at,"
+            " start_offset_min, end_offset_min, amount, payment, commission)"
+            " SELECT driver_id, 'x', shift_id, start_at, end_at, 300, 300, 100, 'cash', 0"
+            " FROM trips WHERE id = 't1'"
+        )
 
 
 def test_unknown_trip_field_is_rejected(driver):
@@ -91,28 +107,46 @@ def test_unknown_trip_field_is_rejected(driver):
 
 # --- error format ---
 
+
 def test_validation_error_shape(driver):
     r = driver.post("/api/trips", json={**TRIP, "amount": 0})
-    assert r.json() == {"error": {
-        "code": "validation_error", "message": "Some fields are invalid", "ctx": {},
-        "fields": [{"field": "amount", "code": "greater_than",
-                    "message": "Input should be greater than 0", "ctx": {"gt": 0}}],
-    }}
+    assert r.json() == {
+        "error": {
+            "code": "validation_error",
+            "message": "Some fields are invalid",
+            "ctx": {},
+            "fields": [
+                {
+                    "field": "amount",
+                    "code": "greater_than",
+                    "message": "Input should be greater than 0",
+                    "ctx": {"gt": 0},
+                }
+            ],
+        }
+    }
 
 
 def test_conflict_error_shape(driver):
     driver.post("/api/shifts", json={"start": "2026-10-03T10:00:00+05:00"})
     r = driver.post("/api/shifts", json={})
     assert r.status_code == 409
-    assert r.json()["error"] == {"code": "shift_already_open", "message": "Close the open shift first",
-                                 "fields": [], "ctx": {}}
+    assert r.json()["error"] == {
+        "code": "shift_already_open",
+        "message": "Close the open shift first",
+        "fields": [],
+        "ctx": {},
+    }
 
 
-@pytest.mark.parametrize("method, path, status, expected", [
-    ("GET", "/api/me", 401, "not_authenticated"),
-    ("GET", "/api/nope", 404, "not_found"),
-    ("PUT", "/api/health", 405, "method_not_allowed"),
-])
+@pytest.mark.parametrize(
+    "method, path, status, expected",
+    [
+        ("GET", "/api/me", 401, "not_authenticated"),
+        ("GET", "/api/nope", 404, "not_found"),
+        ("PUT", "/api/health", 405, "method_not_allowed"),
+    ],
+)
 def test_framework_errors_use_the_same_format(app, method, path, status, expected):
     r = TestClient(app).request(method, path)
     assert r.status_code == status and code(r) == expected
@@ -121,8 +155,7 @@ def test_framework_errors_use_the_same_format(app, method, path, status, expecte
 
 def test_rejected_input_is_not_echoed(app, db):
     # A password must never come back in an error response
-    r = TestClient(app).post("/api/auth/login", json={"email": "x@example.com",
-                                                      "password": "x" * 200})
+    r = TestClient(app).post("/api/auth/login", json={"email": "x@example.com", "password": "x" * 200})
     assert r.status_code == 422 and "xxxx" not in r.text
 
 

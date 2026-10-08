@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { get, withQuery } from "../../shared/api/client";
-import type { DayInfo, DaySummary, Shift, Trip } from "../../shared/api/types";
-import type { DiaryScope } from "./scope";
+import { get, withQuery } from "@/shared/api/client";
+import type { DayInfo, DaySummary, Shift, Trip } from "@/shared/api/types";
+import type { DiaryScope } from "@/features/diary/scope";
 
 export function useDays(scope: DiaryScope) {
   return useQuery({

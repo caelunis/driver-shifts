@@ -1,21 +1,42 @@
 """Exception handlers that render every error in the format described in app.core.errors."""
-from http import HTTPStatus
 
-from fastapi import FastAPI, Request
+from http import HTTPStatus
+from typing import Any
+
+import orjson
+from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.core.enums import ErrorCode
 from app.core.errors import ApiError, DomainValidationError
+
+
+class ErrorJSONResponse(JSONResponse):
+    """Error bodies are built by hand (no response model), so they are serialized with
+    orjson. Regular responses go through FastAPI's own Pydantic serializer, which is
+    faster than any response class (FastAPI deprecated ORJSONResponse for that reason)."""
+
+    def render(self, content: Any) -> bytes:
+        return orjson.dumps(content)
+
 
 # Where a request value came from; the client only needs the field name itself
 _LOCATIONS = {"body", "query", "path", "header", "cookie"}
 
 
-def error_response(status: int, code: str, message: str, *, fields: list | None = None,
-                   ctx: dict | None = None, headers: dict | None = None) -> JSONResponse:
+def error_response(
+    status: int,
+    code: str,
+    message: str,
+    *,
+    fields: list | None = None,
+    ctx: dict | None = None,
+    headers: dict | None = None,
+) -> ErrorJSONResponse:
     body = {"code": code, "message": message, "fields": fields or [], "ctx": ctx or {}}
-    return JSONResponse({"error": body}, status_code=status, headers=headers)
+    return ErrorJSONResponse({"error": body}, status_code=status, headers=headers)
 
 
 def _json_safe(value):
@@ -33,12 +54,21 @@ def _field(err: dict) -> dict:
     if loc and loc[0] in _LOCATIONS:
         loc = loc[1:]
     # The rejected input is left out on purpose: it may be a password
-    return {"field": ".".join(loc) or None, "code": err["type"], "message": err["msg"],
-            "ctx": _json_safe(err.get("ctx", {}))}
+    return {
+        "field": ".".join(loc) or None,
+        "code": err["type"],
+        "message": err["msg"],
+        "ctx": _json_safe(err.get("ctx", {})),
+    }
 
 
-def validation_response(fields: list[dict]) -> JSONResponse:
-    return error_response(422, "validation_error", "Some fields are invalid", fields=fields)
+def validation_response(fields: list[dict]) -> ErrorJSONResponse:
+    return error_response(
+        status.HTTP_422_UNPROCESSABLE_CONTENT,
+        ErrorCode.VALIDATION_ERROR,
+        "Some fields are invalid",
+        fields=fields,
+    )
 
 
 def install(app: FastAPI) -> None:
@@ -52,13 +82,15 @@ def install(app: FastAPI) -> None:
 
     @app.exception_handler(ApiError)
     async def api_error(request: Request, exc: ApiError):
-        return error_response(exc.status, exc.code, exc.message, ctx=_json_safe(exc.ctx),
-                              headers=exc.headers)
+        return error_response(exc.status, exc.code, exc.message, ctx=_json_safe(exc.ctx), headers=exc.headers)
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request: Request, exc: StarletteHTTPException):
         # Raised by the framework itself: unknown route, wrong method and the like
         phrase = HTTPStatus(exc.status_code).phrase
-        return error_response(exc.status_code, phrase.lower().replace(" ", "_").replace("-", "_"),
-                              exc.detail if isinstance(exc.detail, str) else phrase,
-                              headers=getattr(exc, "headers", None))
+        return error_response(
+            exc.status_code,
+            phrase.lower().replace(" ", "_").replace("-", "_"),
+            exc.detail if isinstance(exc.detail, str) else phrase,
+            headers=getattr(exc, "headers", None),
+        )

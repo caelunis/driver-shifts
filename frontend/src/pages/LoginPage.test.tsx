@@ -4,8 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ToastProvider } from "../shared/ui/Toast";
-import { LoginPage } from "./LoginPage";
+import { ToastProvider } from "@/shared/ui/Toast";
+import { LoginPage } from "@/pages/LoginPage";
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });

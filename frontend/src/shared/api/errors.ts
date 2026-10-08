@@ -1,9 +1,9 @@
 // Server error codes -> Russian text. The server sends stable codes plus English
 // messages; the English message is the fallback for codes not listed here.
-import { formatMoney } from "../lib/money";
-import { formatDateTime } from "../lib/time";
-import { ApiError } from "./client";
-import type { FieldError } from "./types";
+import { formatMoney } from "@/shared/lib/money";
+import { formatDateTime } from "@/shared/lib/time";
+import { ApiError } from "@/shared/api/client";
+import type { FieldError } from "@/shared/api/types";
 
 const num = (v: unknown) => (typeof v === "number" ? v : Number(v));
 
@@ -38,6 +38,7 @@ export function fieldErrorMessage(e: FieldError): string {
     case "datetime_from_date_parsing":
       return "Укажите дату и время";
     case "literal_error":
+    case "enum":
       return "Выберите значение из списка";
     case "value_error":
       return e.field === "email" ? "Некорректный e-mail" : e.message.replace(/^Value error, /, "");
