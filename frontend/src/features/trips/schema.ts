@@ -12,37 +12,37 @@ const INT = /^\d+$/;
 export function tripFormSchema(manualCommission: boolean) {
   return z
     .object({
-      start: z.string().min(1, "Укажите начало"),
-      end: z.string().min(1, "Укажите окончание"),
-      amount: z.string().min(1, "Укажите сумму").regex(INT, "Введите сумму целым числом"),
-      payment: z.enum(["card", "cash"]),
-      commission: z.string(),
+      started_at: z.string().min(1, "Укажите начало"),
+      ended_at: z.string().min(1, "Укажите окончание"),
+      fare: z.string().min(1, "Укажите сумму").regex(INT, "Введите сумму целым числом"),
+      payment_method: z.enum(["card", "cash"]),
+      commission_amount: z.string(),
     })
     .superRefine((v, ctx) => {
-      const amount = Number(v.amount);
-      if (INT.test(v.amount)) {
-        if (amount <= 0) ctx.addIssue({ code: "custom", path: ["amount"], message: "Сумма должна быть больше 0" });
-        if (amount > MAX_AMOUNT) {
-          ctx.addIssue({ code: "custom", path: ["amount"], message: "Не больше 500 000 ₸" });
+      const fare = Number(v.fare);
+      if (INT.test(v.fare)) {
+        if (fare <= 0) ctx.addIssue({ code: "custom", path: ["fare"], message: "Сумма должна быть больше 0" });
+        if (fare > MAX_AMOUNT) {
+          ctx.addIssue({ code: "custom", path: ["fare"], message: "Не больше 500 000 ₸" });
         }
       }
-      if (v.start && v.end) {
-        const minutes = (Date.parse(v.end) - Date.parse(v.start)) / 60000;
+      if (v.started_at && v.ended_at) {
+        const minutes = (Date.parse(v.ended_at) - Date.parse(v.started_at)) / 60000;
         if (minutes <= 0) {
-          ctx.addIssue({ code: "custom", path: ["end"], message: "Окончание должно быть позже начала" });
+          ctx.addIssue({ code: "custom", path: ["ended_at"], message: "Окончание должно быть позже начала" });
         } else if (minutes < MIN_TRIP_MIN) {
-          ctx.addIssue({ code: "custom", path: ["end"], message: "Поездка длится не меньше минуты" });
+          ctx.addIssue({ code: "custom", path: ["ended_at"], message: "Поездка длится не меньше минуты" });
         } else if (minutes > MAX_TRIP_MIN) {
-          ctx.addIssue({ code: "custom", path: ["end"], message: "Поездка длится не больше 6 часов" });
+          ctx.addIssue({ code: "custom", path: ["ended_at"], message: "Поездка длится не больше 6 часов" });
         }
       }
       if (manualCommission) {
-        if (!v.commission) {
-          ctx.addIssue({ code: "custom", path: ["commission"], message: "Укажите комиссию" });
-        } else if (!INT.test(v.commission)) {
-          ctx.addIssue({ code: "custom", path: ["commission"], message: "Введите комиссию целым числом" });
-        } else if (INT.test(v.amount) && Number(v.commission) >= amount) {
-          ctx.addIssue({ code: "custom", path: ["commission"], message: "Комиссия должна быть меньше суммы" });
+        if (!v.commission_amount) {
+          ctx.addIssue({ code: "custom", path: ["commission_amount"], message: "Укажите комиссию" });
+        } else if (!INT.test(v.commission_amount)) {
+          ctx.addIssue({ code: "custom", path: ["commission_amount"], message: "Введите комиссию целым числом" });
+        } else if (INT.test(v.fare) && Number(v.commission_amount) >= fare) {
+          ctx.addIssue({ code: "custom", path: ["commission_amount"], message: "Комиссия должна быть меньше суммы" });
         }
       }
     });

@@ -5,6 +5,7 @@ import hashlib
 import logging
 import secrets
 from datetime import UTC, datetime
+from uuid import UUID
 
 from app.core.constants import SESSION_TOKEN_BYTES, SESSION_TTL
 from app.core.security import hash_password, verify_password
@@ -28,7 +29,7 @@ class AuthService:
     def __init__(self, db: Database) -> None:
         self._db = db
 
-    async def authenticate(self, email: str, password: str) -> int | None:
+    async def authenticate(self, email: str, password: str) -> UUID | None:
         """The account id if the password is right."""
         async with self._db.unit_of_work() as uow:
             creds = await uow.users.credentials(email)
@@ -37,7 +38,7 @@ class AuthService:
         ok = await asyncio.to_thread(verify_password, password, stored)
         return creds.id if creds and ok else None
 
-    async def create_session(self, user_id: int) -> str:
+    async def create_session(self, user_id: UUID) -> str:
         token = secrets.token_urlsafe(SESSION_TOKEN_BYTES)
         async with self._db.unit_of_work() as uow:
             await uow.sessions.insert(_token_hash(token), user_id, datetime.now(UTC) + SESSION_TTL)

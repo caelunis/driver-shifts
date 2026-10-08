@@ -15,15 +15,15 @@ export function useDays(scope: DiaryScope) {
 export function useDay(scope: DiaryScope, day: string) {
   const summary = useQuery({
     queryKey: [scope.base, "summary", day],
-    queryFn: () => get<DaySummary>(withQuery(`${scope.base}/summary`, { date: day })),
+    queryFn: () => get<DaySummary>(withQuery(`${scope.base}/summary`, { work_date: day })),
   });
   const shifts = useQuery({
     queryKey: [scope.base, "shifts", day],
-    queryFn: () => get<Shift[]>(withQuery(`${scope.base}/shifts`, { date: day })),
+    queryFn: () => get<Shift[]>(withQuery(`${scope.base}/shifts`, { work_date: day })),
   });
   const trips = useQuery({
     queryKey: [scope.base, "trips", day],
-    queryFn: () => get<Trip[]>(withQuery(`${scope.base}/trips`, { date: day })),
+    queryFn: () => get<Trip[]>(withQuery(`${scope.base}/trips`, { work_date: day })),
   });
   return { summary, shifts, trips };
 }

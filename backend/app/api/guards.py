@@ -14,6 +14,8 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from app.api.errors import error_response
 from app.api.middleware import client_address
 from app.core.constants import (
+    API_PREFIX,
+    API_V1,
     LOGIN_ATTEMPTS_PER_CLIENT,
     LOGIN_ATTEMPTS_WINDOW,
     PUBLIC_ENDPOINTS,
@@ -28,7 +30,6 @@ from app.services.auth import AuthService
 
 log = logging.getLogger(__name__)
 
-API_PREFIX = "/api"
 # Health checks are polled by Docker and never throttled
 _UNTHROTTLED = frozenset({"/api/health"})
 
@@ -79,7 +80,7 @@ class ThrottleMiddleware:
         client = client_address(scope) or "unknown"
         state = await self.store.hit(f"requests:{client}", THROTTLE_WINDOW)
         limit, code = THROTTLE_LIMIT, ErrorCode.TOO_MANY_REQUESTS
-        if state.count <= limit and scope["method"] == "POST" and path == "/api/auth/login":
+        if state.count <= limit and scope["method"] == "POST" and path == f"{API_V1}/auth/login":
             state = await self.store.hit(f"logins:{client}", LOGIN_ATTEMPTS_WINDOW)
             limit, code = LOGIN_ATTEMPTS_PER_CLIENT, ErrorCode.TOO_MANY_ATTEMPTS
         if state.count > limit:

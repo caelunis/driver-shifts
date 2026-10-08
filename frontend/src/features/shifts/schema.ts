@@ -8,23 +8,23 @@ const MAX_SHIFT_MIN = 24 * 60;
 export function shiftFormSchema(mode: ShiftDialogMode) {
   return z
     .object({
-      start: z.string(),
-      end: z.string(),
+      started_at: z.string(),
+      ended_at: z.string(),
       note: z.string().max(500, "Не больше 500 символов"),
     })
     .superRefine((v, ctx) => {
-      if (mode !== "close" && !v.start) {
-        ctx.addIssue({ code: "custom", path: ["start"], message: "Укажите начало" });
+      if (mode !== "close" && !v.started_at) {
+        ctx.addIssue({ code: "custom", path: ["started_at"], message: "Укажите начало" });
       }
-      if (mode === "past" && !v.end) {
-        ctx.addIssue({ code: "custom", path: ["end"], message: "Укажите окончание" });
+      if (mode === "past" && !v.ended_at) {
+        ctx.addIssue({ code: "custom", path: ["ended_at"], message: "Укажите окончание" });
       }
-      if (v.start && v.end) {
-        const minutes = (Date.parse(v.end) - Date.parse(v.start)) / 60000;
+      if (v.started_at && v.ended_at) {
+        const minutes = (Date.parse(v.ended_at) - Date.parse(v.started_at)) / 60000;
         if (minutes <= 0) {
-          ctx.addIssue({ code: "custom", path: ["end"], message: "Окончание должно быть позже начала" });
+          ctx.addIssue({ code: "custom", path: ["ended_at"], message: "Окончание должно быть позже начала" });
         } else if (minutes > MAX_SHIFT_MIN) {
-          ctx.addIssue({ code: "custom", path: ["end"], message: "Смена длится не больше 24 часов" });
+          ctx.addIssue({ code: "custom", path: ["ended_at"], message: "Смена длится не больше 24 часов" });
         }
       }
     });

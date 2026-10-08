@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
-import { api, ApiError, get } from "@/shared/api/client";
+import { api, API_V1, ApiError, get } from "@/shared/api/client";
 import type { Profile } from "@/shared/api/types";
 
 export const meKey = ["me"] as const;
@@ -21,7 +21,7 @@ export function useMe() {
     queryKey: meKey,
     queryFn: async () => {
       try {
-        return await get<Profile>("/api/me");
+        return await get<Profile>(`${API_V1}/me`);
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) return null;
         throw e;
@@ -34,7 +34,7 @@ export function useMe() {
 export function useLogin() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { email: string; password: string }) => api<Profile>("POST", "/api/auth/login", body),
+    mutationFn: (body: { email: string; password: string }) => api<Profile>("POST", `${API_V1}/auth/login`, body),
     onSuccess: (profile) => switchAccount(qc, profile),
   });
 }
@@ -42,7 +42,7 @@ export function useLogin() {
 export function useLogout() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api<void>("POST", "/api/auth/logout", {}),
+    mutationFn: () => api<void>("POST", `${API_V1}/auth/logout`, {}),
     onSettled: () => switchAccount(qc, null),
   });
 }

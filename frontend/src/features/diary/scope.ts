@@ -1,8 +1,10 @@
 import type { QueryClient } from "@tanstack/react-query";
 
+import { API_V1 } from "@/shared/api/client";
+
 /**
- * Whose diary is shown and by whom. The driver's endpoints live under /api, the
- * admin's copies of them under /api/admin/drivers/{id}, with the same paths below.
+ * Whose diary is shown and by whom. The driver's endpoints live under /api/v1, the
+ * admin's copies of them under /api/v1/admin/drivers/{id}, with the same paths below.
  */
 export interface DiaryScope {
   base: string;
@@ -16,15 +18,15 @@ export interface DiaryScope {
 }
 
 export const driverScope = (tz: string, commissionPct: number | null): DiaryScope => ({
-  base: "/api",
+  base: API_V1,
   role: "driver",
   tz,
   commissionPct,
   dayPath: (day) => `/day/${day}`,
 });
 
-export const adminScope = (driverId: number, tz: string, commissionPct: number | null): DiaryScope => ({
-  base: `/api/admin/drivers/${driverId}`,
+export const adminScope = (driverId: string, tz: string, commissionPct: number | null): DiaryScope => ({
+  base: `${API_V1}/admin/drivers/${driverId}`,
   role: "admin",
   tz,
   commissionPct,

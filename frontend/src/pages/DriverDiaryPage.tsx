@@ -6,7 +6,7 @@ import { DayView } from "@/features/diary/DayView";
 import { adminScope } from "@/features/diary/scope";
 import { useDriver } from "@/features/drivers/api";
 import { DriverDialog } from "@/features/drivers/DriverDialog";
-import { api } from "@/shared/api/client";
+import { api, API_V1 } from "@/shared/api/client";
 import { errorMessage } from "@/shared/api/errors";
 import { formatPct } from "@/shared/lib/money";
 import { carText } from "@/shared/lib/plate";
@@ -18,7 +18,7 @@ import { useToast } from "@/shared/ui/Toast";
 /** The admin's view of one driver: profile header and the driver's diary. */
 export function DriverDiaryPage() {
   const params = useParams();
-  const id = Number(params.id);
+  const id = params.id ?? "";
   const driver = useDriver(id);
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -26,7 +26,7 @@ export function DriverDiaryPage() {
   const [dialog, setDialog] = useState<"none" | "edit" | "delete">("none");
 
   const remove = useMutation({
-    mutationFn: () => api<void>("DELETE", `/api/admin/drivers/${id}`),
+    mutationFn: () => api<void>("DELETE", `${API_V1}/admin/drivers/${id}`),
     onSuccess: async () => {
       toast.ok("Водитель удалён");
       await qc.invalidateQueries({ queryKey: ["drivers"] });
@@ -47,9 +47,9 @@ export function DriverDiaryPage() {
   if (!driver.data) return <p className="loading">Загрузка…</p>;
 
   const d = driver.data;
-  const scope = adminScope(d.id, d.default_tz, d.default_commission_pct ?? null);
+  const scope = adminScope(d.id, d.timezone, d.commission_percent ?? null);
   // Without a date: the last day with a shift, or today
-  if (!params.date) return <Navigate to={scope.dayPath(d.last_trip_day ?? todayIn(d.default_tz))} replace />;
+  if (!params.date) return <Navigate to={scope.dayPath(d.last_work_date ?? todayIn(d.timezone))} replace />;
 
   return (
     <div className="wide">
@@ -58,12 +58,12 @@ export function DriverDiaryPage() {
           <Link to="/admin/drivers" className="muted small">
             ← Все водители
           </Link>
-          <h2>{d.name}</h2>
+          <h2>{d.full_name}</h2>
           <p className="muted small">
             {[
               d.email,
               carText(d),
-              d.default_commission_pct == null ? "комиссия вручную" : `комиссия ${formatPct(d.default_commission_pct)}`,
+              d.commission_percent == null ? "комиссия вручную" : `комиссия ${formatPct(d.commission_percent)}`,
               tripsText(d.trips_count),
             ]
               .filter(Boolean)
@@ -85,7 +85,7 @@ export function DriverDiaryPage() {
       <DriverDialog open={dialog === "edit"} onClose={() => setDialog("none")} driver={d} />
       <ConfirmDialog
         open={dialog === "delete"}
-        title={`Удалить водителя ${d.name}?`}
+        title={`Удалить водителя ${d.full_name}?`}
         confirmText="Удалить"
         busy={remove.isPending}
         onClose={() => setDialog("none")}

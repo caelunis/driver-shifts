@@ -50,7 +50,7 @@ export function DayView({ scope, day, onDay }: Props) {
           <p className="loading">Загрузка…</p>
         ) : (
           <>
-            {summary.data.shifts > 0 && <SummaryCards s={summary.data} />}
+            {summary.data.shifts_count > 0 && <SummaryCards s={summary.data} />}
             {shifts.data.length === 0 && (
               <p className="panel muted empty">
                 В этот день смен нет.

@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 
-import { api } from "@/shared/api/client";
+import { api, API_V1 } from "@/shared/api/client";
 import type { Shift, ShiftPatch, ShiftStartIn } from "@/shared/api/types";
 import { applyServerErrors } from "@/shared/lib/forms";
 import { isoDay, isoToLocal, localToIso, localWithOffset, nowLocal, parseOffset } from "@/shared/lib/time";
@@ -30,7 +30,7 @@ const TITLES: Record<ShiftDialogMode, string> = {
   edit: "Изменить смену",
   close: "Закончить смену",
 };
-const FIELDS = ["start", "end", "note"] as const;
+const FIELDS = ["started_at", "ended_at", "note"] as const;
 
 export function ShiftDialog(props: Props) {
   return (
@@ -46,11 +46,11 @@ function ShiftForm({ scope, mode, onClose, shift, onSaved }: Props) {
 
   const initial: ShiftFormValues = useMemo(
     () => ({
-      start: shift ? isoToLocal(shift.start) : "",
+      started_at: shift ? isoToLocal(shift.started_at) : "",
       // Closing: "now", unless the shift is a forgotten one that would exceed 24 hours
-      end: shift?.end
-        ? isoToLocal(shift.end)
-        : mode === "close" && shift && Date.now() - Date.parse(shift.start) < DAY_MS
+      ended_at: shift?.ended_at
+        ? isoToLocal(shift.ended_at)
+        : mode === "close" && shift && Date.now() - Date.parse(shift.started_at) < DAY_MS
           ? nowLocal(scope.tz)
           : "",
       note: shift?.note ?? "",
@@ -63,29 +63,29 @@ function ShiftForm({ scope, mode, onClose, shift, onSaved }: Props) {
   });
   const err = formState.errors;
   // Edited times keep the shift's own offset; new ones get the driver's zone
-  const offset = shift ? (parseOffset(shift.start) ?? 0) : null;
+  const offset = shift ? (parseOffset(shift.started_at) ?? 0) : null;
   const toIso = (local: string) => (offset === null ? localToIso(local, scope.tz) : localWithOffset(local, offset));
 
   const save = useMutation({
     mutationFn: async (v: ShiftFormValues): Promise<Shift> => {
       if (mode === "past") {
-        const body: ShiftStartIn = { start: toIso(v.start), end: toIso(v.end), note: v.note };
-        return api<Shift>("POST", "/api/shifts", body);
+        const body: ShiftStartIn = { started_at: toIso(v.started_at), ended_at: toIso(v.ended_at), note: v.note };
+        return api<Shift>("POST", `${API_V1}/shifts`, body);
       }
       if (mode === "close" && scope.role === "driver") {
-        return api<Shift>("POST", `/api/shifts/${shift!.id}/close`, v.end ? { end: toIso(v.end) } : {});
+        return api<Shift>("POST", `${API_V1}/shifts/${shift!.id}/close`, v.ended_at ? { ended_at: toIso(v.ended_at) } : {});
       }
       // Edit, or the admin closing a shift (the admin has no close endpoint: an end is a change)
       const patch: ShiftPatch = {};
-      if (v.start !== initial.start) patch.start = toIso(v.start);
-      if (v.end !== initial.end) patch.end = v.end ? toIso(v.end) : null; // cleared: reopen
+      if (v.started_at !== initial.started_at) patch.started_at = toIso(v.started_at);
+      if (v.ended_at !== initial.ended_at) patch.ended_at = v.ended_at ? toIso(v.ended_at) : null; // cleared: reopen
       if (v.note !== initial.note) patch.note = v.note;
       return api<Shift>("PATCH", `${scope.base}/shifts/${shift!.id}`, patch);
     },
     onSuccess: async (saved) => {
       toast.ok(mode === "past" ? "Смена добавлена" : mode === "close" ? "Смена закончена" : "Смена изменена");
       await invalidateDiary(qc, scope);
-      onSaved?.(isoDay(saved.start));
+      onSaved?.(isoDay(saved.started_at));
       onClose();
     },
     onError: (e) => {
@@ -97,16 +97,16 @@ function ShiftForm({ scope, mode, onClose, shift, onSaved }: Props) {
   return (
     <form className="form" noValidate onSubmit={handleSubmit((v) => save.mutate(v))}>
       {mode !== "close" && (
-        <Field label="Начало" error={err.start?.message}>
-          <input type="datetime-local" {...register("start")} />
+        <Field label="Начало" error={err.started_at?.message}>
+          <input type="datetime-local" {...register("started_at")} />
         </Field>
       )}
       <Field
         label="Окончание"
-        error={err.end?.message}
+        error={err.ended_at?.message}
         hint={
           mode === "edit"
-            ? shift?.end
+            ? shift?.ended_at
               ? "Очистите поле, чтобы снова открыть смену"
               : "Пусто — смена продолжается"
             : mode === "close"
@@ -114,7 +114,7 @@ function ShiftForm({ scope, mode, onClose, shift, onSaved }: Props) {
               : undefined
         }
       >
-        <input type="datetime-local" {...register("end")} />
+        <input type="datetime-local" {...register("ended_at")} />
       </Field>
       {mode !== "close" && (
         <Field label="Заметка" error={err.note?.message}>

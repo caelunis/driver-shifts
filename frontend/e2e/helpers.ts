@@ -18,29 +18,29 @@ export const pastDay = (n = 2) => addDays(todayIn(TZ), -n);
 /** An API session of one account (its own cookie jar). */
 export async function apiAs(baseURL: string, email: string, password: string): Promise<APIRequestContext> {
   const ctx = await request.newContext({ baseURL });
-  const r = await ctx.post("/api/auth/login", { data: { email, password } });
+  const r = await ctx.post("/api/v1/auth/login", { data: { email, password } });
   expect(r.status(), await r.text()).toBe(200);
   return ctx;
 }
 
 export interface TestDriver {
-  id: number;
+  id: string;
   email: string;
-  name: string;
+  fullName: string;
 }
 
 /** A fresh driver created through the admin API. */
 export async function createDriver(admin: APIRequestContext, extra: Record<string, unknown> = {}): Promise<TestDriver> {
   const tag = unique();
-  const body = { email: `e2e-${tag}@example.com`, password: PASSWORD, name: `Тест ${tag}`, default_tz: TZ, ...extra };
-  const r = await admin.post("/api/admin/drivers", { data: body });
+  const body = { email: `e2e-${tag}@example.com`, password: PASSWORD, full_name: `Тест ${tag}`, timezone: TZ, ...extra };
+  const r = await admin.post("/api/v1/admin/drivers", { data: body });
   expect(r.status(), await r.text()).toBe(201);
   const d = (await r.json()) as TestDriver;
-  return { id: d.id, email: body.email, name: body.name };
+  return { id: d.id, email: body.email, fullName: body.full_name };
 }
 
-export async function deleteDriver(admin: APIRequestContext, id: number) {
-  await admin.delete(`/api/admin/drivers/${id}`);
+export async function deleteDriver(admin: APIRequestContext, id: string) {
+  await admin.delete(`/api/v1/admin/drivers/${id}`);
 }
 
 export async function loginUi(page: Page, email: string, password: string) {

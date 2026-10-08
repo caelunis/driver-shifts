@@ -14,4 +14,4 @@ from app.services.commission import Commission
     ],
 )
 def test_commission_for(amount, pct, expected):
-    assert Commission.for_amount(amount, pct) == expected
+    assert Commission.for_fare(amount, pct) == expected

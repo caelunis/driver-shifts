@@ -14,9 +14,9 @@ export function DiaryPage() {
   const { date } = useParams();
   const navigate = useNavigate();
   if (!me) return null; // RequireRole has already waited for the profile
-  const tz = me.default_tz ?? DEFAULT_TZ;
+  const tz = me.timezone ?? DEFAULT_TZ;
   if (!date || !DAY.test(date)) return <Navigate to={`/day/${todayIn(tz)}`} replace />;
 
-  const scope = driverScope(tz, me.default_commission_pct ?? null);
+  const scope = driverScope(tz, me.commission_percent ?? null);
   return <DayView scope={scope} day={date} onDay={(d) => navigate(scope.dayPath(d))} />;
 }

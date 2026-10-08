@@ -21,7 +21,7 @@ export function fieldErrorMessage(e: FieldError): string {
     case "less_than":
       return `Должно быть меньше ${c.lt}`;
     case "less_than_equal":
-      return e.field === "amount" ? `Не больше ${formatMoney(num(c.le))}` : `Не больше ${c.le}`;
+      return e.field === "fare" ? `Не больше ${formatMoney(num(c.le))}` : `Не больше ${c.le}`;
     case "string_too_short":
       return num(c.min_length) === 1 ? "Заполните поле" : `Не меньше ${c.min_length} символов`;
     case "string_too_long":
@@ -66,14 +66,14 @@ export function fieldErrorMessage(e: FieldError): string {
       return "Поездка длится не меньше минуты";
     case "trip_too_long":
       return "Поездка длится не больше 6 часов";
-    case "commission_exceeds_amount":
+    case "commission_exceeds_fare":
       return "Комиссия должна быть меньше суммы";
     case "commission_fixed":
       return `Комиссию считает сервер: ${formatMoney(num(c.expected))}`;
     case "shift_not_found":
       return "Смена не найдена";
     case "outside_shift":
-      return e.field === "start" ? "Поездка начинается раньше смены" : "Поездка заканчивается после смены";
+      return e.field === "started_at" ? "Поездка начинается раньше смены" : "Поездка заканчивается после смены";
     case "in_future":
       return "Это время ещё не наступило";
     case "too_old":
@@ -81,9 +81,9 @@ export function fieldErrorMessage(e: FieldError): string {
     case "shift_too_long":
       return "Смена длится не больше 24 часов";
     case "before_last_trip":
-      return `Смена не может закончиться раньше последней поездки (${formatDateTime(String(c.last_trip_end))})`;
+      return `Смена не может закончиться раньше последней поездки (${formatDateTime(String(c.last_trip_ended_at))})`;
     case "after_first_trip":
-      return `Смена не может начаться позже первой поездки (${formatDateTime(String(c.first_trip_start))})`;
+      return `Смена не может начаться позже первой поездки (${formatDateTime(String(c.first_trip_started_at))})`;
     case "start_required":
       return "Укажите начало";
     default:

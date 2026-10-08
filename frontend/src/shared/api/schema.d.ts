@@ -12,8 +12,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Health
-         * @description Liveness + database check, used by the Docker healthcheck.
+         * Service and database are up
+         * @description Used by the Docker healthcheck. No session needed.
          */
         get: operations["health_api_health_get"];
         put?: never;
@@ -24,7 +24,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/auth/login": {
+    "/api/v1/auth/login": {
         parameters: {
             query?: never;
             header?: never;
@@ -33,15 +33,20 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Login */
-        post: operations["login_api_auth_login_post"];
+        /**
+         * Log in
+         * @description Sets the HttpOnly `session` cookie (30 days) and returns the profile. A wrong password
+         *     and an unknown email get the same answer; after 5 failures an email waits 15 minutes
+         *     (**429 too_many_attempts** with Retry-After).
+         */
+        post: operations["login_api_v1_auth_login_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/auth/logout": {
+    "/api/v1/auth/logout": {
         parameters: {
             query?: never;
             header?: never;
@@ -50,33 +55,18 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Logout */
-        post: operations["logout_api_auth_logout_post"];
+        /**
+         * Log out
+         * @description Ends the session. Needs `Content-Type: application/json` (a CSRF guard), body `{}`.
+         */
+        post: operations["logout_api_v1_auth_logout_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/me": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Me */
-        get: operations["me_api_me_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Update Me */
-        patch: operations["update_me_api_me_patch"];
-        trace?: never;
-    };
-    "/api/shifts": {
+    "/api/v1/me": {
         parameters: {
             query?: never;
             header?: never;
@@ -84,20 +74,23 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List Shifts
-         * @description Shifts that started on this local day, each with its summary.
+         * Who am I
+         * @description The logged-in account; driver fields are null for the admin.
          */
-        get: operations["list_shifts_api_shifts_get"];
+        get: operations["me_api_v1_me_get"];
         put?: never;
-        /** Start Shift */
-        post: operations["start_shift_api_shifts_post"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Change my timezone
+         * @description A driver changes only `timezone`; any other field is **403 admin_managed_fields**.
+         */
+        patch: operations["update_me_api_v1_me_patch"];
         trace?: never;
     };
-    "/api/shifts/current": {
+    "/api/v1/shifts": {
         parameters: {
             query?: never;
             header?: never;
@@ -105,41 +98,70 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Current Shift
-         * @description The open shift, or null.
+         * Shifts of a date
+         * @description Shifts that started on `work_date`, each with its summary.
          */
-        get: operations["current_shift_api_shifts_current_get"];
+        get: operations["list_shifts_api_v1_shifts_get"];
         put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/shifts/{shift_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Shift */
-        get: operations["get_shift_api_shifts__shift_id__get"];
-        put?: never;
-        post?: never;
         /**
-         * Delete Shift
-         * @description Deletes the shift together with its trips.
+         * Start a shift, or enter a past one
+         * @description An empty body starts a shift now. With `started_at` only, a shift starts then; with
+         *     `ended_at` too, a finished past shift is entered.
+         *
+         *     At most 24 hours long, at most 7 days back, never in the future. One open shift at a
+         *     time (**409 shift_already_open**); shifts never overlap (**409 shift_overlap**).
          */
-        delete: operations["delete_shift_api_shifts__shift_id__delete"];
+        post: operations["start_shift_api_v1_shifts_post"];
+        delete?: never;
         options?: never;
         head?: never;
-        /** Update Shift */
-        patch: operations["update_shift_api_shifts__shift_id__patch"];
+        patch?: never;
         trace?: never;
     };
-    "/api/shifts/{shift_id}/close": {
+    "/api/v1/shifts/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The open shift
+         * @description The shift that is still open, or null.
+         */
+        get: operations["current_shift_api_v1_shifts_current_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shifts/{shift_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A shift with its trips */
+        get: operations["get_shift_api_v1_shifts__shift_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete a shift and its trips */
+        delete: operations["delete_shift_api_v1_shifts__shift_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Change a shift
+         * @description Only the fields sent change. The trips must stay inside; `ended_at: null` reopens the
+         *     latest shift. 409 shift_locked once it ended more than 7 days ago.
+         */
+        patch: operations["update_shift_api_v1_shifts__shift_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/shifts/{shift_id}/close": {
         parameters: {
             query?: never;
             header?: never;
@@ -148,23 +170,30 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Close Shift */
-        post: operations["close_shift_api_shifts__shift_id__close_post"];
+        /**
+         * Close the open shift
+         * @description Ends the shift now or at `ended_at`, not before its last trip. A forgotten shift can
+         *     always be closed, with an end within 24 hours of its start.
+         */
+        post: operations["close_shift_api_v1_shifts__shift_id__close_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/days": {
+    "/api/v1/days": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List Days */
-        get: operations["list_days_api_days_get"];
+        /**
+         * Dates with shifts
+         * @description Every work date with at least one shift, with its trip count and take-home: the calendar.
+         */
+        get: operations["list_days_api_v1_days_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -173,105 +202,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/trips": {
+    "/api/v1/trips": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List Trips */
-        get: operations["list_trips_api_trips_get"];
+        /**
+         * Trips of a date
+         * @description Trips of the shifts that started on `work_date`, a night shift's trips after midnight included.
+         */
+        get: operations["list_trips_api_v1_trips_get"];
         put?: never;
-        /** Add Trip */
-        post: operations["add_trip_api_trips_post"];
+        /**
+         * Add a trip
+         * @description Adds a trip to one of the driver's shifts, inside its start and end.
+         *
+         *     Idempotent by `id`: a retried request returns **200** with the stored trip. The same `id`
+         *     with different data is **409 trip_conflict**; a time that overlaps another trip is
+         *     **409 trip_overlap**. With a commission percent set by the admin, the server computes
+         *     `commission_amount`. A shift that ended more than 7 days ago no longer takes trips.
+         */
+        post: operations["add_trip_api_v1_trips_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/summary": {
+    "/api/v1/summary": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Day Summary */
-        get: operations["day_summary_api_summary_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/trips/{trip_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Delete Trip */
-        delete: operations["delete_trip_api_trips__trip_id__delete"];
-        options?: never;
-        head?: never;
-        /** Update Trip */
-        patch: operations["update_trip_api_trips__trip_id__patch"];
-        trace?: never;
-    };
-    "/api/admin/drivers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Drivers */
-        get: operations["list_drivers_api_admin_drivers_get"];
-        put?: never;
-        /** Create Driver */
-        post: operations["create_driver_api_admin_drivers_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/drivers/{driver_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Driver */
-        get: operations["get_driver_api_admin_drivers__driver_id__get"];
-        put?: never;
-        post?: never;
-        /** Delete Driver */
-        delete: operations["delete_driver_api_admin_drivers__driver_id__delete"];
-        options?: never;
-        head?: never;
-        /** Update Driver */
-        patch: operations["update_driver_api_admin_drivers__driver_id__patch"];
-        trace?: never;
-    };
-    "/api/admin/drivers/{driver_id}/days": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Driver Days */
-        get: operations["driver_days_api_admin_drivers__driver_id__days_get"];
+        /**
+         * Totals of a date
+         * @description Revenue, commission, take-home and the cash/card split of the date's shifts.
+         */
+        get: operations["day_summary_api_v1_summary_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -280,77 +251,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/drivers/{driver_id}/trips": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Driver Trips */
-        get: operations["driver_trips_api_admin_drivers__driver_id__trips_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/drivers/{driver_id}/summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Driver Summary */
-        get: operations["driver_summary_api_admin_drivers__driver_id__summary_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/drivers/{driver_id}/shifts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Driver Shifts */
-        get: operations["driver_shifts_api_admin_drivers__driver_id__shifts_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/drivers/{driver_id}/shifts/{shift_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Driver Shift */
-        get: operations["driver_shift_api_admin_drivers__driver_id__shifts__shift_id__get"];
-        put?: never;
-        post?: never;
-        /** Delete Driver Shift */
-        delete: operations["delete_driver_shift_api_admin_drivers__driver_id__shifts__shift_id__delete"];
-        options?: never;
-        head?: never;
-        /** Update Driver Shift */
-        patch: operations["update_driver_shift_api_admin_drivers__driver_id__shifts__shift_id__patch"];
-        trace?: never;
-    };
-    "/api/admin/drivers/{driver_id}/trips/{trip_id}": {
+    "/api/v1/trips/{trip_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -360,12 +261,158 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete Driver Trip */
-        delete: operations["delete_driver_trip_api_admin_drivers__driver_id__trips__trip_id__delete"];
+        /** Delete a trip */
+        delete: operations["delete_trip_api_v1_trips__trip_id__delete"];
         options?: never;
         head?: never;
-        /** Update Driver Trip */
-        patch: operations["update_driver_trip_api_admin_drivers__driver_id__trips__trip_id__patch"];
+        /**
+         * Change a trip
+         * @description Only the fields sent change; the same rules as adding apply. A new fare recomputes the
+         *     commission with the percent stored with the trip. 409 shift_locked after 7 days.
+         */
+        patch: operations["update_trip_api_v1_trips__trip_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/drivers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Drivers with their totals */
+        get: operations["list_drivers_api_v1_admin_drivers_get"];
+        put?: never;
+        /** Create a driver */
+        post: operations["create_driver_api_v1_admin_drivers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/drivers/{driver_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A driver */
+        get: operations["get_driver_api_v1_admin_drivers__driver_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete a driver with all their data */
+        delete: operations["delete_driver_api_v1_admin_drivers__driver_id__delete"];
+        options?: never;
+        head?: never;
+        /** Change a driver */
+        patch: operations["update_driver_api_v1_admin_drivers__driver_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/drivers/{driver_id}/days": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The driver's dates with shifts */
+        get: operations["driver_days_api_v1_admin_drivers__driver_id__days_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/drivers/{driver_id}/trips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The driver's trips of a date */
+        get: operations["driver_trips_api_v1_admin_drivers__driver_id__trips_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/drivers/{driver_id}/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The driver's totals of a date */
+        get: operations["driver_summary_api_v1_admin_drivers__driver_id__summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/drivers/{driver_id}/shifts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The driver's shifts of a date */
+        get: operations["driver_shifts_api_v1_admin_drivers__driver_id__shifts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/drivers/{driver_id}/shifts/{shift_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A shift of the driver */
+        get: operations["driver_shift_api_v1_admin_drivers__driver_id__shifts__shift_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete a shift and its trips */
+        delete: operations["delete_driver_shift_api_v1_admin_drivers__driver_id__shifts__shift_id__delete"];
+        options?: never;
+        head?: never;
+        /** Correct a shift, without the 7-day limit */
+        patch: operations["update_driver_shift_api_v1_admin_drivers__driver_id__shifts__shift_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/drivers/{driver_id}/trips/{trip_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a trip */
+        delete: operations["delete_driver_trip_api_v1_admin_drivers__driver_id__trips__trip_id__delete"];
+        options?: never;
+        head?: never;
+        /** Correct a trip, without the 7-day limit */
+        patch: operations["update_driver_trip_api_v1_admin_drivers__driver_id__trips__trip_id__patch"];
         trace?: never;
     };
 }
@@ -374,41 +421,47 @@ export interface components {
     schemas: {
         /**
          * DayInfo
-         * @description Short per-day entry for the day navigation panel: a day with at least one shift.
+         * @description A work date with at least one shift, for the calendar.
          */
         DayInfo: {
             /**
-             * Date
+             * Work Date
              * Format: date
              */
-            date: string;
-            /** Count */
-            count: number;
-            /** Net */
-            net: number;
+            work_date: string;
+            /** Trips Count */
+            trips_count: number;
+            /** Net Income */
+            net_income: number;
         };
         /**
          * DaySummary
-         * @description Totals of all trips in the shifts that started on this local day.
+         * @description Totals of all trips in the shifts that started on this work date.
          */
         DaySummary: {
-            /** Count */
-            count: number;
-            /** Revenue */
-            revenue: number;
-            /** Commission */
-            commission: number;
-            /** Net */
-            net: number;
-            cash: components["schemas"]["PaymentBreakdown"];
-            card: components["schemas"]["PaymentBreakdown"];
+            /** Trips Count */
+            trips_count: number;
             /**
-             * Date
+             * Revenue
+             * @description Sum of fares, whole KZT
+             */
+            revenue: number;
+            /** Commission Total */
+            commission_total: number;
+            /**
+             * Net Income
+             * @description Take-home: revenue minus commission_total
+             */
+            net_income: number;
+            cash: components["schemas"]["PaymentTotals"];
+            card: components["schemas"]["PaymentTotals"];
+            /**
+             * Work Date
              * Format: date
              */
-            date: string;
-            /** Shifts */
-            shifts: number;
+            work_date: string;
+            /** Shifts Count */
+            shifts_count: number;
         };
         /** DriverCreate */
         DriverCreate: {
@@ -417,45 +470,60 @@ export interface components {
              * Format: email
              */
             email: string;
-            /** Password */
+            /**
+             * Password
+             * @description 8+ characters with a letter and a digit, not the email
+             */
             password: string;
-            /** Name */
-            name: string;
+            /** Full Name */
+            full_name: string;
             /**
              * Car Model
              * @default
              */
             car_model: string;
-            /** Car Plate */
+            /**
+             * Car Plate
+             * @description Kazakhstan plate, e.g. 123 ABC 02
+             */
             car_plate?: string | null;
             /**
-             * Default Tz
+             * Timezone
              * @default Asia/Almaty
              */
-            default_tz: string;
-            /** Default Commission Pct */
-            default_commission_pct?: number | null;
+            timezone: string;
+            /** Commission Percent */
+            commission_percent?: number | null;
         };
         /**
          * DriverInfo
          * @description A driver as the admin sees them: profile plus totals.
          */
         DriverInfo: {
-            /** Id */
-            id: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
             /** Email */
             email: string;
             role: components["schemas"]["Role"];
-            /** Name */
-            name: string;
+            /** Full Name */
+            full_name: string;
             /** Car Model */
             car_model: string;
-            /** Car Plate */
+            /**
+             * Car Plate
+             * @description Normalized, e.g. "123ABC02"
+             */
             car_plate?: string | null;
-            /** Default Tz */
-            default_tz: string;
-            /** Default Commission Pct */
-            default_commission_pct?: number | null;
+            /** Timezone */
+            timezone: string;
+            /**
+             * Commission Percent
+             * @description Set by the admin; null: the driver enters each commission
+             */
+            commission_percent?: number | null;
             /**
              * Created At
              * Format: date-time
@@ -465,35 +533,116 @@ export interface components {
             trips_count: number;
             /** Revenue */
             revenue: number;
-            /** Net */
-            net: number;
-            /** Last Trip Day */
-            last_trip_day: string | null;
+            /** Net Income */
+            net_income: number;
+            /**
+             * Last Work Date
+             * @description The latest date with a trip
+             */
+            last_work_date: string | null;
         };
         /**
          * DriverUpdate
-         * @description PATCH /api/admin/drivers/{id}: only the fields that were sent are changed.
+         * @description Only the fields that were sent are changed.
          */
         DriverUpdate: {
-            /** Name */
-            name?: string | null;
+            /** Full Name */
+            full_name?: string | null;
             /** Car Model */
             car_model?: string | null;
-            /** Car Plate */
+            /**
+             * Car Plate
+             * @description null removes the plate
+             */
             car_plate?: string | null;
-            /** Default Tz */
-            default_tz?: string | null;
-            /** Default Commission Pct */
-            default_commission_pct?: number | null;
-            /** Password */
+            /** Timezone */
+            timezone?: string | null;
+            /**
+             * Commission Percent
+             * @description null: the driver enters it
+             */
+            commission_percent?: number | null;
+            /**
+             * Password
+             * @description Ends all of the driver's sessions
+             */
             password?: string | null;
         };
-        /** HTTPValidationError */
-        HTTPValidationError: {
-            /** Detail */
-            detail?: components["schemas"]["ValidationError"][];
+        /**
+         * ErrorBody
+         * @description Every 4xx and 5xx response. The rejected input itself is never echoed.
+         * @example {
+         *       "error": {
+         *         "code": "validation_error",
+         *         "ctx": {},
+         *         "fields": [
+         *           {
+         *             "code": "greater_than",
+         *             "ctx": {
+         *               "gt": 0
+         *             },
+         *             "field": "fare",
+         *             "message": "…"
+         *           }
+         *         ],
+         *         "message": "Some fields are invalid"
+         *       }
+         *     }
+         */
+        ErrorBody: {
+            error: components["schemas"]["ErrorDetail"];
         };
-        /** LoginIn */
+        /** ErrorDetail */
+        ErrorDetail: {
+            /**
+             * Code
+             * @description Stable code: validation_error, shift_locked, trip_overlap, …
+             */
+            code: string;
+            /** Message */
+            message: string;
+            /**
+             * Fields
+             * @description Every invalid field of a 422, all at once
+             */
+            fields: components["schemas"]["FieldError"][];
+            /** Ctx */
+            ctx: {
+                [key: string]: unknown;
+            };
+        };
+        /** FieldError */
+        FieldError: {
+            /**
+             * Field
+             * @description The request field, e.g. ended_at; null for the body as a whole
+             */
+            field: string | null;
+            /**
+             * Code
+             * @description Stable, e.g. end_before_start; clients translate it
+             */
+            code: string;
+            /**
+             * Message
+             * @description English, a fallback for unknown codes
+             */
+            message: string;
+            /**
+             * Ctx
+             * @description Values for the message, e.g. {'expected': 360}
+             */
+            ctx: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * LoginIn
+         * @example {
+         *       "email": "demo@example.com",
+         *       "password": "demo12345"
+         *     }
+         */
         LoginIn: {
             /**
              * Email
@@ -503,45 +652,58 @@ export interface components {
             /** Password */
             password: string;
         };
-        /** PaymentBreakdown */
-        PaymentBreakdown: {
-            /**
-             * Count
-             * @default 0
-             */
-            count: number;
-            /**
-             * Amount
-             * @default 0
-             */
-            amount: number;
-        };
         /**
          * PaymentMethod
          * @enum {string}
          */
         PaymentMethod: "cash" | "card";
+        /** PaymentTotals */
+        PaymentTotals: {
+            /**
+             * Trips Count
+             * @default 0
+             */
+            trips_count: number;
+            /**
+             * Amount
+             * @description Sum of fares, whole KZT
+             * @default 0
+             */
+            amount: number;
+        };
         /**
          * Profile
-         * @description The logged-in account. Driver fields are None for admins: an admin is a
+         * @description The logged-in account. Driver fields are null for admins: an admin is a
          *     user without a driver profile.
          */
         Profile: {
-            /** Id */
-            id: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
             /** Email */
             email: string;
             role: components["schemas"]["Role"];
-            /** Name */
-            name?: string | null;
+            /** Full Name */
+            full_name?: string | null;
             /** Car Model */
             car_model?: string | null;
-            /** Car Plate */
+            /**
+             * Car Plate
+             * @description Normalized, e.g. "123ABC02"
+             */
             car_plate?: string | null;
-            /** Default Tz */
-            default_tz?: string | null;
-            /** Default Commission Pct */
-            default_commission_pct?: number | null;
+            /**
+             * Timezone
+             * @description IANA name, e.g. Asia/Almaty
+             */
+            timezone?: string | null;
+            /**
+             * Commission Percent
+             * @description Set by the admin; null: the driver enters each commission
+             */
+            commission_percent?: number | null;
         };
         /**
          * Role
@@ -550,47 +712,64 @@ export interface components {
         Role: "driver" | "admin";
         /** Shift */
         Shift: {
-            /** Id */
-            id: number;
             /**
-             * Start
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Started At
              * Format: date-time
              */
-            start: string;
-            /** End */
-            end: string | null;
+            started_at: string;
+            /**
+             * Ended At
+             * @description null while the shift is open
+             */
+            ended_at: string | null;
             status: components["schemas"]["ShiftStatus"];
             /**
-             * Local Day
+             * Work Date
              * Format: date
+             * @description The local date the shift started on; its trips count there
              */
-            local_day: string;
+            work_date: string;
             /** Note */
             note: string;
             summary: components["schemas"]["ShiftSummary"];
         };
         /** ShiftCloseIn */
         ShiftCloseIn: {
-            /** End */
-            end?: string | null;
+            /**
+             * Ended At
+             * @description Omitted: now
+             */
+            ended_at?: string | null;
         };
         /** ShiftDetail */
         ShiftDetail: {
-            /** Id */
-            id: number;
             /**
-             * Start
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Started At
              * Format: date-time
              */
-            start: string;
-            /** End */
-            end: string | null;
+            started_at: string;
+            /**
+             * Ended At
+             * @description null while the shift is open
+             */
+            ended_at: string | null;
             status: components["schemas"]["ShiftStatus"];
             /**
-             * Local Day
+             * Work Date
              * Format: date
+             * @description The local date the shift started on; its trips count there
              */
-            local_day: string;
+            work_date: string;
             /** Note */
             note: string;
             summary: components["schemas"]["ShiftSummary"];
@@ -599,25 +778,37 @@ export interface components {
         };
         /**
          * ShiftPatch
-         * @description Changes to a shift; omitted fields keep their values. `end: null` reopens it.
+         * @description Changes to a shift; omitted fields keep their values. `ended_at: null` reopens it.
          */
         ShiftPatch: {
-            /** Start */
-            start?: string | null;
-            /** End */
-            end?: string | null;
+            /** Started At */
+            started_at?: string | null;
+            /** Ended At */
+            ended_at?: string | null;
             /** Note */
             note?: string | null;
         };
         /**
          * ShiftStartIn
-         * @description Start a shift now (no fields), at a given time, or enter a past shift (start + end).
+         * @description Start a shift now (empty body), at a given time, or enter a finished past shift.
+         * @example {}
+         * @example {
+         *       "ended_at": "2026-10-01T18:00:00+05:00",
+         *       "note": "Day",
+         *       "started_at": "2026-10-01T08:00:00+05:00"
+         *     }
          */
         ShiftStartIn: {
-            /** Start */
-            start?: string | null;
-            /** End */
-            end?: string | null;
+            /**
+             * Started At
+             * @description Omitted: now
+             */
+            started_at?: string | null;
+            /**
+             * Ended At
+             * @description Given: a finished past shift, at most 24 hours long
+             */
+            ended_at?: string | null;
             /**
              * Note
              * @default
@@ -631,108 +822,151 @@ export interface components {
         ShiftStatus: "open" | "closed";
         /** ShiftSummary */
         ShiftSummary: {
-            /** Count */
-            count: number;
-            /** Revenue */
+            /** Trips Count */
+            trips_count: number;
+            /**
+             * Revenue
+             * @description Sum of fares, whole KZT
+             */
             revenue: number;
-            /** Commission */
-            commission: number;
-            /** Net */
-            net: number;
-            cash: components["schemas"]["PaymentBreakdown"];
-            card: components["schemas"]["PaymentBreakdown"];
-            /** Duration Min */
-            duration_min: number;
-            /** Net Per Hour */
-            net_per_hour: number | null;
+            /** Commission Total */
+            commission_total: number;
+            /**
+             * Net Income
+             * @description Take-home: revenue minus commission_total
+             */
+            net_income: number;
+            cash: components["schemas"]["PaymentTotals"];
+            card: components["schemas"]["PaymentTotals"];
+            /**
+             * Duration Minutes
+             * @description Up to now for an open shift
+             */
+            duration_minutes: number;
+            /**
+             * Net Income Per Hour
+             * @description null for a shift shorter than a minute
+             */
+            net_income_per_hour: number | null;
         };
         /**
          * Trip
          * @description A stored trip.
          */
         Trip: {
-            /** Id */
+            /**
+             * Id
+             * Format: uuid
+             */
             id: string;
-            /** Shift Id */
-            shift_id: number;
             /**
-             * Start
+             * Shift Id
+             * Format: uuid
+             */
+            shift_id: string;
+            /**
+             * Started At
              * Format: date-time
              */
-            start: string;
+            started_at: string;
             /**
-             * End
+             * Ended At
              * Format: date-time
              */
-            end: string;
-            /** Amount */
-            amount: number;
-            payment: components["schemas"]["PaymentMethod"];
-            /** Commission */
-            commission: number;
-            /** Commission Pct */
-            commission_pct?: number | null;
+            ended_at: string;
+            /**
+             * Fare
+             * @description Whole KZT
+             */
+            fare: number;
+            payment_method: components["schemas"]["PaymentMethod"];
+            /**
+             * Commission Amount
+             * @description Whole KZT
+             */
+            commission_amount: number;
+            /**
+             * Commission Percent
+             * @description The percent the commission was computed with; null if entered by hand
+             */
+            commission_percent?: number | null;
+            /**
+             * Net Income
+             * @description fare minus commission_amount
+             */
+            net_income: number;
         };
         /**
          * TripIn
-         * @description Trip as sent by a client. The id is optional.
+         * @description A trip as the client sends it.
+         * @example {
+         *       "commission_amount": 360,
+         *       "ended_at": "2026-10-01T08:32:00+05:00",
+         *       "fare": 2400,
+         *       "id": "0192f0a0-3b1c-7d2e-8f40-5a6b7c8d9e0f",
+         *       "payment_method": "card",
+         *       "shift_id": "0192f09e-1111-7222-8333-444455556666",
+         *       "started_at": "2026-10-01T08:10:00+05:00"
+         *     }
          */
         TripIn: {
-            /** Id */
+            /**
+             * Id
+             * @description Generated by the client once per trip, so that a retried request is recognised and not stored twice. Without it the server derives one from the content.
+             */
             id?: string | null;
-            /** Shift Id */
-            shift_id: number;
             /**
-             * Start
+             * Shift Id
+             * Format: uuid
+             * @description The driver's shift the trip belongs to
+             */
+            shift_id: string;
+            /**
+             * Started At
              * Format: date-time
+             * @description With the UTC offset it was recorded in, e.g. 2026-10-01T08:10:00+05:00
              */
-            start: string;
+            started_at: string;
             /**
-             * End
+             * Ended At
              * Format: date-time
+             * @description 1 minute to 6 hours after started_at
              */
-            end: string;
+            ended_at: string;
             /**
-             * Amount
-             * @description Trip amount, KZT
+             * Fare
+             * @description What the passenger paid, whole KZT
              */
-            amount: number;
-            payment: components["schemas"]["PaymentMethod"];
+            fare: number;
+            payment_method: components["schemas"]["PaymentMethod"];
             /**
-             * Commission
-             * @description Commission, KZT
+             * Commission Amount
+             * @description Whole KZT, less than the fare. Omit it when the admin set a commission percent for the driver: the server computes it then.
              */
-            commission?: number | null;
+            commission_amount?: number | null;
         };
         /**
          * TripPatch
          * @description Changes to a stored trip; omitted fields keep their values. The id never changes.
          */
         TripPatch: {
-            /** Shift Id */
-            shift_id?: number | null;
-            /** Start */
-            start?: string | null;
-            /** End */
-            end?: string | null;
-            /** Amount */
-            amount?: number | null;
-            payment?: components["schemas"]["PaymentMethod"] | null;
-            /** Commission */
-            commission?: number | null;
-        };
-        /** ValidationError */
-        ValidationError: {
-            /** Location */
-            loc: (string | number)[];
-            /** Message */
-            msg: string;
-            /** Error Type */
-            type: string;
-            /** Input */
-            input?: unknown;
-            /** Context */
-            ctx?: Record<string, never>;
+            /**
+             * Shift Id
+             * @description Move the trip to another of the driver's shifts
+             */
+            shift_id?: string | null;
+            /** Started At */
+            started_at?: string | null;
+            /** Ended At */
+            ended_at?: string | null;
+            /** Fare */
+            fare?: number | null;
+            payment_method?: components["schemas"]["PaymentMethod"] | null;
+            /**
+             * Commission Amount
+             * @description Only for trips without a commission percent
+             */
+            commission_amount?: number | null;
         };
     };
     responses: never;
@@ -763,9 +997,18 @@ export interface operations {
                     };
                 };
             };
+            /** @description The database is unreachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
         };
     };
-    login_api_auth_login_post: {
+    login_api_v1_auth_login_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -787,18 +1030,36 @@ export interface operations {
                     "application/json": components["schemas"]["Profile"];
                 };
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    logout_api_auth_logout_post: {
+    logout_api_v1_auth_logout_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -816,18 +1077,27 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Validation Error */
+            /** @description Expected application/json */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    me_api_me_get: {
+    me_api_v1_me_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -845,9 +1115,27 @@ export interface operations {
                     "application/json": components["schemas"]["Profile"];
                 };
             };
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
         };
     };
-    update_me_api_me_patch: {
+    update_me_api_v1_me_patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -856,8 +1144,14 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "timezone": "Asia/Almaty"
+                 *     }
+                 */
                 "application/json": {
-                    [key: string]: unknown;
+                    /** Timezone */
+                    timezone: string;
                 };
             };
         };
@@ -871,21 +1165,49 @@ export interface operations {
                     "application/json": components["schemas"]["Profile"];
                 };
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    list_shifts_api_shifts_get: {
+    list_shifts_api_v1_shifts_get: {
         parameters: {
             query: {
-                date: string;
+                /** @description A local date */
+                work_date: string;
             };
             header?: never;
             path?: never;
@@ -902,18 +1224,45 @@ export interface operations {
                     "application/json": components["schemas"]["Shift"][];
                 };
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    start_shift_api_shifts_post: {
+    start_shift_api_v1_shifts_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -935,18 +1284,54 @@ export interface operations {
                     "application/json": components["schemas"]["Shift"];
                 };
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Clashes with the current state (see error.code) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    current_shift_api_shifts_current_get: {
+    current_shift_api_v1_shifts_current_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -964,14 +1349,50 @@ export interface operations {
                     "application/json": components["schemas"]["Shift"] | null;
                 };
             };
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
         };
     };
-    get_shift_api_shifts__shift_id__get: {
+    get_shift_api_v1_shifts__shift_id__get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                shift_id: number;
+                shift_id: string;
             };
             cookie?: never;
         };
@@ -986,23 +1407,59 @@ export interface operations {
                     "application/json": components["schemas"]["ShiftDetail"];
                 };
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    delete_shift_api_shifts__shift_id__delete: {
+    delete_shift_api_v1_shifts__shift_id__delete: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                shift_id: number;
+                shift_id: string;
             };
             cookie?: never;
         };
@@ -1015,23 +1472,68 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Clashes with the current state (see error.code) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    update_shift_api_shifts__shift_id__patch: {
+    update_shift_api_v1_shifts__shift_id__patch: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                shift_id: number;
+                shift_id: string;
             };
             cookie?: never;
         };
@@ -1050,23 +1552,68 @@ export interface operations {
                     "application/json": components["schemas"]["Shift"];
                 };
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Clashes with the current state (see error.code) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    close_shift_api_shifts__shift_id__close_post: {
+    close_shift_api_v1_shifts__shift_id__close_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                shift_id: number;
+                shift_id: string;
             };
             cookie?: never;
         };
@@ -1085,18 +1632,63 @@ export interface operations {
                     "application/json": components["schemas"]["Shift"];
                 };
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Clashes with the current state (see error.code) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    list_days_api_days_get: {
+    list_days_api_v1_days_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1114,12 +1706,49 @@ export interface operations {
                     "application/json": components["schemas"]["DayInfo"][];
                 };
             };
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
         };
     };
-    list_trips_api_trips_get: {
+    list_trips_api_v1_trips_get: {
         parameters: {
             query: {
-                date: string;
+                /** @description A local date: the shifts that started on it */
+                work_date: string;
             };
             header?: never;
             path?: never;
@@ -1136,18 +1765,45 @@ export interface operations {
                     "application/json": components["schemas"]["Trip"][];
                 };
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    add_trip_api_trips_post: {
+    add_trip_api_v1_trips_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1160,6 +1816,15 @@ export interface operations {
             };
         };
         responses: {
+            /** @description The same trip again: the stored one, nothing added */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Trip"];
+                };
+            };
             /** @description Successful Response */
             201: {
                 headers: {
@@ -1169,21 +1834,58 @@ export interface operations {
                     "application/json": components["schemas"]["Trip"];
                 };
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Clashes with the current state (see error.code) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    day_summary_api_summary_get: {
+    day_summary_api_v1_summary_get: {
         parameters: {
             query: {
-                date: string;
+                /** @description A local date: the shifts that started on it */
+                work_date: string;
             };
             header?: never;
             path?: never;
@@ -1200,18 +1902,45 @@ export interface operations {
                     "application/json": components["schemas"]["DaySummary"];
                 };
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    delete_trip_api_trips__trip_id__delete: {
+    delete_trip_api_v1_trips__trip_id__delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -1229,18 +1958,63 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Clashes with the current state (see error.code) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    update_trip_api_trips__trip_id__patch: {
+    update_trip_api_v1_trips__trip_id__patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -1264,20 +2038,66 @@ export interface operations {
                     "application/json": components["schemas"]["Trip"];
                 };
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Clashes with the current state (see error.code) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    list_drivers_api_admin_drivers_get: {
+    list_drivers_api_v1_admin_drivers_get: {
         parameters: {
             query?: {
+                /** @description Search by name, email, car model or plate */
                 q?: string | null;
             };
             header?: never;
@@ -1295,18 +2115,54 @@ export interface operations {
                     "application/json": components["schemas"]["DriverInfo"][];
                 };
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    create_driver_api_admin_drivers_post: {
+    create_driver_api_v1_admin_drivers_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1328,23 +2184,68 @@ export interface operations {
                     "application/json": components["schemas"]["DriverInfo"];
                 };
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Clashes with the current state (see error.code) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    get_driver_api_admin_drivers__driver_id__get: {
+    get_driver_api_v1_admin_drivers__driver_id__get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                driver_id: number;
+                driver_id: string;
             };
             cookie?: never;
         };
@@ -1359,23 +2260,59 @@ export interface operations {
                     "application/json": components["schemas"]["DriverInfo"];
                 };
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    delete_driver_api_admin_drivers__driver_id__delete: {
+    delete_driver_api_v1_admin_drivers__driver_id__delete: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                driver_id: number;
+                driver_id: string;
             };
             cookie?: never;
         };
@@ -1388,23 +2325,59 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    update_driver_api_admin_drivers__driver_id__patch: {
+    update_driver_api_v1_admin_drivers__driver_id__patch: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                driver_id: number;
+                driver_id: string;
             };
             cookie?: never;
         };
@@ -1423,23 +2396,68 @@ export interface operations {
                     "application/json": components["schemas"]["DriverInfo"];
                 };
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Clashes with the current state (see error.code) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    driver_days_api_admin_drivers__driver_id__days_get: {
+    driver_days_api_v1_admin_drivers__driver_id__days_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                driver_id: number;
+                driver_id: string;
             };
             cookie?: never;
         };
@@ -1454,25 +2472,62 @@ export interface operations {
                     "application/json": components["schemas"]["DayInfo"][];
                 };
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    driver_trips_api_admin_drivers__driver_id__trips_get: {
+    driver_trips_api_v1_admin_drivers__driver_id__trips_get: {
         parameters: {
             query: {
-                date: string;
+                /** @description A local date: the shifts that started on it */
+                work_date: string;
             };
             header?: never;
             path: {
-                driver_id: number;
+                driver_id: string;
             };
             cookie?: never;
         };
@@ -1487,25 +2542,62 @@ export interface operations {
                     "application/json": components["schemas"]["Trip"][];
                 };
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    driver_summary_api_admin_drivers__driver_id__summary_get: {
+    driver_summary_api_v1_admin_drivers__driver_id__summary_get: {
         parameters: {
             query: {
-                date: string;
+                /** @description A local date: the shifts that started on it */
+                work_date: string;
             };
             header?: never;
             path: {
-                driver_id: number;
+                driver_id: string;
             };
             cookie?: never;
         };
@@ -1520,25 +2612,62 @@ export interface operations {
                     "application/json": components["schemas"]["DaySummary"];
                 };
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    driver_shifts_api_admin_drivers__driver_id__shifts_get: {
+    driver_shifts_api_v1_admin_drivers__driver_id__shifts_get: {
         parameters: {
             query: {
-                date: string;
+                /** @description A local date: the shifts that started on it */
+                work_date: string;
             };
             header?: never;
             path: {
-                driver_id: number;
+                driver_id: string;
             };
             cookie?: never;
         };
@@ -1553,24 +2682,60 @@ export interface operations {
                     "application/json": components["schemas"]["Shift"][];
                 };
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    driver_shift_api_admin_drivers__driver_id__shifts__shift_id__get: {
+    driver_shift_api_v1_admin_drivers__driver_id__shifts__shift_id__get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                shift_id: number;
-                driver_id: number;
+                shift_id: string;
+                driver_id: string;
             };
             cookie?: never;
         };
@@ -1585,24 +2750,60 @@ export interface operations {
                     "application/json": components["schemas"]["ShiftDetail"];
                 };
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    delete_driver_shift_api_admin_drivers__driver_id__shifts__shift_id__delete: {
+    delete_driver_shift_api_v1_admin_drivers__driver_id__shifts__shift_id__delete: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                shift_id: number;
-                driver_id: number;
+                shift_id: string;
+                driver_id: string;
             };
             cookie?: never;
         };
@@ -1615,24 +2816,60 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    update_driver_shift_api_admin_drivers__driver_id__shifts__shift_id__patch: {
+    update_driver_shift_api_v1_admin_drivers__driver_id__shifts__shift_id__patch: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                shift_id: number;
-                driver_id: number;
+                shift_id: string;
+                driver_id: string;
             };
             cookie?: never;
         };
@@ -1651,24 +2888,69 @@ export interface operations {
                     "application/json": components["schemas"]["Shift"];
                 };
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Clashes with the current state (see error.code) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    delete_driver_trip_api_admin_drivers__driver_id__trips__trip_id__delete: {
+    delete_driver_trip_api_v1_admin_drivers__driver_id__trips__trip_id__delete: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 trip_id: string;
-                driver_id: number;
+                driver_id: string;
             };
             cookie?: never;
         };
@@ -1681,24 +2963,60 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    update_driver_trip_api_admin_drivers__driver_id__trips__trip_id__patch: {
+    update_driver_trip_api_v1_admin_drivers__driver_id__trips__trip_id__patch: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 trip_id: string;
-                driver_id: number;
+                driver_id: string;
             };
             cookie?: never;
         };
@@ -1717,13 +3035,58 @@ export interface operations {
                     "application/json": components["schemas"]["Trip"];
                 };
             };
-            /** @description Validation Error */
+            /** @description No session, or it expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account's role may not do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Clashes with the current state (see error.code) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Invalid fields: error.fields lists all of them */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many requests; see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };

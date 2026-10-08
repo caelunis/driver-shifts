@@ -57,17 +57,17 @@ export function DriversPage() {
                 <tr key={d.id} className="clickable" onClick={() => navigate(`/admin/drivers/${d.id}`)}>
                   <td>
                     <Link to={`/admin/drivers/${d.id}`} onClick={(e) => e.stopPropagation()}>
-                      {d.name}
+                      {d.full_name}
                     </Link>
                     <div className="muted small">{d.email}</div>
                   </td>
                   <td className="hide-sm">{carText(d) || <span className="muted">—</span>}</td>
                   <td className="num hide-sm">
-                    {d.default_commission_pct == null ? <span className="muted">вручную</span> : formatPct(d.default_commission_pct)}
+                    {d.commission_percent == null ? <span className="muted">вручную</span> : formatPct(d.commission_percent)}
                   </td>
                   <td className="num">{d.trips_count}</td>
-                  <td className="num">{formatMoney(d.net)}</td>
-                  <td className="hide-sm">{d.last_trip_day ? formatDay(d.last_trip_day) : <span className="muted">—</span>}</td>
+                  <td className="num">{formatMoney(d.net_income)}</td>
+                  <td className="hide-sm">{d.last_work_date ? formatDay(d.last_work_date) : <span className="muted">—</span>}</td>
                 </tr>
               ))}
             </tbody>

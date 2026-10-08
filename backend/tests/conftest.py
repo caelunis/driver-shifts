@@ -150,8 +150,20 @@ def db(database: Database, portal: BlockingPortal) -> TestDb:
     return TestDb(database, portal)
 
 
+@pytest.fixture(autouse=True)
+def shift_ids(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Shifts get ids sid(1), sid(2), … in the order a test creates them (the app's
+    UUIDv7 otherwise), so tests can name a shift without carrying its id around."""
+    from uuid import UUID
+
+    from tests.api import sid
+
+    counter = iter(range(1, 1_000_000))
+    monkeypatch.setattr("app.repositories.shifts.uuid7", lambda: UUID(sid(next(counter))))
+
+
 @pytest.fixture
-def driver_id(db: TestDb) -> int:
+def driver_id(db: TestDb) -> str:
     from tests.factories import create_driver
 
     return create_driver(db, "driver@example.com", "horse-battery-9", name="Test driver")

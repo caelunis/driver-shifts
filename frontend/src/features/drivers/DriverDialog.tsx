@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 
-import { api, ApiError } from "@/shared/api/client";
+import { api, API_V1, ApiError } from "@/shared/api/client";
 import { errorMessage } from "@/shared/api/errors";
 import type { DriverCreate, DriverInfo, DriverUpdate } from "@/shared/api/types";
 import { applyServerErrors } from "@/shared/lib/forms";
@@ -22,7 +22,7 @@ interface Props {
   onSaved?: (driver: DriverInfo) => void;
 }
 
-const FIELDS = ["email", "password", "name", "car_model", "car_plate", "default_tz", "default_commission_pct"] as const;
+const FIELDS = ["email", "password", "full_name", "car_model", "car_plate", "timezone", "commission_percent"] as const;
 const CONFLICT_FIELDS: Record<string, "email" | "car_plate"> = { email_taken: "email", plate_taken: "car_plate" };
 
 export function DriverDialog(props: Props) {
@@ -42,11 +42,11 @@ function DriverForm({ onClose, driver, onSaved }: Props) {
     defaultValues: {
       email: driver?.email ?? "",
       password: "",
-      name: driver?.name ?? "",
+      full_name: driver?.full_name ?? "",
       car_model: driver?.car_model ?? "",
       car_plate: formatPlate(driver?.car_plate),
-      default_tz: driver?.default_tz ?? DEFAULT_TZ,
-      default_commission_pct: driver?.default_commission_pct == null ? "" : String(driver.default_commission_pct),
+      timezone: driver?.timezone ?? DEFAULT_TZ,
+      commission_percent: driver?.commission_percent == null ? "" : String(driver.commission_percent),
     },
   });
   const err = formState.errors;
@@ -54,23 +54,23 @@ function DriverForm({ onClose, driver, onSaved }: Props) {
   const save = useMutation({
     mutationFn: (v: DriverFormValues) => {
       const profile = {
-        name: v.name.trim(),
+        full_name: v.full_name.trim(),
         car_model: v.car_model.trim(),
         car_plate: v.car_plate.trim() ? normalizePlate(v.car_plate) : null,
-        default_tz: v.default_tz,
-        default_commission_pct: parsePct(v.default_commission_pct),
+        timezone: v.timezone,
+        commission_percent: parsePct(v.commission_percent),
       };
       if (creating) {
         const body: DriverCreate = { ...profile, email: v.email.trim(), password: v.password };
-        return api<DriverInfo>("POST", "/api/admin/drivers", body);
+        return api<DriverInfo>("POST", `${API_V1}/admin/drivers`, body);
       }
       const body: DriverUpdate = v.password ? { ...profile, password: v.password } : profile;
-      return api<DriverInfo>("PATCH", `/api/admin/drivers/${driver.id}`, body);
+      return api<DriverInfo>("PATCH", `${API_V1}/admin/drivers/${driver.id}`, body);
     },
     onSuccess: async (saved, v) => {
       toast.ok(
         creating
-          ? `Водитель ${saved.name} добавлен`
+          ? `Водитель ${saved.full_name} добавлен`
           : v.password
             ? "Сохранено, пароль изменён — водитель выйдет со всех устройств"
             : "Сохранено",
@@ -104,8 +104,8 @@ function DriverForm({ onClose, driver, onSaved }: Props) {
       >
         <input type="text" autoComplete="new-password" spellCheck={false} {...register("password")} />
       </Field>
-      <Field label="Имя" error={err.name?.message}>
-        <input type="text" maxLength={100} {...register("name")} />
+      <Field label="Имя" error={err.full_name?.message}>
+        <input type="text" maxLength={100} {...register("full_name")} />
       </Field>
       <div className="row">
         <Field label="Автомобиль" error={err.car_model?.message}>
@@ -116,11 +116,11 @@ function DriverForm({ onClose, driver, onSaved }: Props) {
         </Field>
       </div>
       <div className="row">
-        <Field label="Комиссия, %" error={err.default_commission_pct?.message} hint="Пусто — водитель вводит сам">
-          <input type="text" inputMode="decimal" placeholder="не задана" {...register("default_commission_pct")} />
+        <Field label="Комиссия, %" error={err.commission_percent?.message} hint="Пусто — водитель вводит сам">
+          <input type="text" inputMode="decimal" placeholder="не задана" {...register("commission_percent")} />
         </Field>
-        <Field label="Часовой пояс" error={err.default_tz?.message}>
-          <TimezoneSelect {...register("default_tz")} />
+        <Field label="Часовой пояс" error={err.timezone?.message}>
+          <TimezoneSelect {...register("timezone")} />
         </Field>
       </div>
       <div className="modal-actions">

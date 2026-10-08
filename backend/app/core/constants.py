@@ -32,7 +32,7 @@ PASSWORD_MAX_LENGTH = 128
 # At least one letter (any alphabet) and one digit; length is checked separately
 PASSWORD_STRENGTH_PATTERN = r"^(?=.*[^\W\d_])(?=.*\d)"  # noqa: S105 - a rule, not a password
 # Profile fields a driver may change; everything else is managed by the admin
-DRIVER_SELF_EDITABLE = frozenset({"default_tz"})
+DRIVER_SELF_EDITABLE = frozenset({"timezone"})
 
 # --- sessions and login ---
 SESSION_COOKIE = "session"
@@ -41,16 +41,21 @@ SESSION_TOKEN_BYTES = 32
 LOGIN_MAX_FAILURES = 5  # failed logins per email, then a pause
 LOGIN_FAILURE_WINDOW = timedelta(minutes=15)
 
+# --- API ---
+API_PREFIX = "/api"
+API_V1 = "/api/v1"  # the versioned API; /api/health stays unversioned for the infrastructure
+API_VERSION = "1.0.0"
+
 # --- access control and throttling ---
 # The only API endpoints served without a session; every other path under /api needs one
 PUBLIC_ENDPOINTS = frozenset(
     {
-        ("POST", "/api/auth/login"),
-        ("POST", "/api/auth/logout"),
+        ("POST", f"{API_V1}/auth/login"),
+        ("POST", f"{API_V1}/auth/logout"),
+        ("GET", f"{API_V1}/docs"),
+        ("GET", f"{API_V1}/openapi.json"),
         ("GET", "/api/health"),
         ("HEAD", "/api/health"),
-        ("GET", "/api/docs"),
-        ("GET", "/api/openapi.json"),
     }
 )
 # Requests per client address (not counting health checks)

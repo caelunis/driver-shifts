@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router";
 
-import { api } from "@/shared/api/client";
+import { api, API_V1 } from "@/shared/api/client";
 import { errorMessage } from "@/shared/api/errors";
 import type { Shift } from "@/shared/api/types";
 import { formatMoney } from "@/shared/lib/money";
@@ -26,31 +26,31 @@ export function CurrentShiftBar({ scope, onDay }: Props) {
   const { data: current, isPending } = useCurrentShift();
   const [dialog, setDialog] = useState<"none" | "past" | "close">("none");
 
-  const start = useMutation({
-    mutationFn: () => api<Shift>("POST", "/api/shifts", {}),
+  const started_at = useMutation({
+    mutationFn: () => api<Shift>("POST", `${API_V1}/shifts`, {}),
     onSuccess: async (shift) => {
       toast.ok("Смена началась");
       await invalidateDiary(qc, scope);
-      onDay(isoDay(shift.start));
+      onDay(isoDay(shift.started_at));
     },
     onError: (e) => toast.err(errorMessage(e)),
   });
 
   if (isPending) return <div className="panel current-shift muted">Загрузка…</div>;
 
-  const forgotten = current != null && Date.now() - Date.parse(current.start) > DAY_MS;
+  const forgotten = current != null && Date.now() - Date.parse(current.started_at) > DAY_MS;
 
   return (
     <section className={current ? "panel current-shift live" : "panel current-shift"} aria-label="Текущая смена">
       {current ? (
         <div className="current-body">
           <div>
-            <strong>Смена идёт</strong> с {formatDateTime(current.start)} ·{" "}
-            {formatDuration(current.summary.duration_min)}
+            <strong>Смена идёт</strong> с {formatDateTime(current.started_at)} ·{" "}
+            {formatDuration(current.summary.duration_minutes)}
             <div className="muted small">
-              {tripsText(current.summary.count)} · на руки {formatMoney(current.summary.net)}
+              {tripsText(current.summary.trips_count)} · на руки {formatMoney(current.summary.net_income)}
               {" · "}
-              <Link to={scope.dayPath(current.local_day)}>к смене</Link>
+              <Link to={scope.dayPath(current.work_date)}>к смене</Link>
             </div>
           </div>
           <button type="button" className="primary" onClick={() => setDialog("close")}>
@@ -61,7 +61,7 @@ export function CurrentShiftBar({ scope, onDay }: Props) {
         <div className="current-body">
           <span className="muted">Смена не начата</span>
           <div className="buttons">
-            <button type="button" className="primary" disabled={start.isPending} onClick={() => start.mutate()}>
+            <button type="button" className="primary" disabled={started_at.isPending} onClick={() => started_at.mutate()}>
               Начать смену
             </button>
             <button type="button" onClick={() => setDialog("past")}>

@@ -1,5 +1,6 @@
 import subprocess
 import sys
+from uuid import UUID
 
 import psycopg
 import pytest
@@ -35,7 +36,7 @@ def test_new_accounts_default_to_driver_role(db):
 
 def test_admin_has_no_driver_profile(db):
     admin = create_driver(db, "boss@example.com", "horse-battery-9", role="admin")
-    assert db.service(AccountService).profile(admin).name is None
+    assert db.service(AccountService).profile(UUID(admin)).full_name is None
     with db.connection() as conn:
         assert conn.execute("SELECT count(*) AS n FROM drivers").fetchone()["n"] == 0
 

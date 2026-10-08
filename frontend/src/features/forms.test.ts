@@ -11,7 +11,7 @@ function errors(result: { success: boolean; error?: { issues: { path: PropertyKe
   return out;
 }
 
-const trip = { start: "2026-10-01T08:10", end: "2026-10-01T08:32", amount: "2400", payment: "card" as const, commission: "360" };
+const trip = { started_at: "2026-10-01T08:10", ended_at: "2026-10-01T08:32", fare: "2400", payment_method: "card" as const, commission_amount: "360" };
 
 describe("trip form", () => {
   it("accepts a normal trip", () => {
@@ -19,35 +19,35 @@ describe("trip form", () => {
   });
 
   it.each([
-    [{ end: "2026-10-01T08:00" }, "end", "Окончание должно быть позже начала"],
-    [{ end: "2026-10-01T14:11" }, "end", "Поездка длится не больше 6 часов"],
-    [{ amount: "0" }, "amount", "Сумма должна быть больше 0"],
-    [{ amount: "500001" }, "amount", "Не больше 500 000 ₸"],
-    [{ amount: "12.5" }, "amount", "Введите сумму целым числом"],
-    [{ commission: "2400" }, "commission", "Комиссия должна быть меньше суммы"],
-    [{ commission: "" }, "commission", "Укажите комиссию"],
-    [{ commission: "1.5" }, "commission", "Введите комиссию целым числом"],
-    [{ amount: "" }, "amount", "Укажите сумму"],
+    [{ ended_at: "2026-10-01T08:00" }, "ended_at", "Окончание должно быть позже начала"],
+    [{ ended_at: "2026-10-01T14:11" }, "ended_at", "Поездка длится не больше 6 часов"],
+    [{ fare: "0" }, "fare", "Сумма должна быть больше 0"],
+    [{ fare: "500001" }, "fare", "Не больше 500 000 ₸"],
+    [{ fare: "12.5" }, "fare", "Введите сумму целым числом"],
+    [{ commission_amount: "2400" }, "commission_amount", "Комиссия должна быть меньше суммы"],
+    [{ commission_amount: "" }, "commission_amount", "Укажите комиссию"],
+    [{ commission_amount: "1.5" }, "commission_amount", "Введите комиссию целым числом"],
+    [{ fare: "" }, "fare", "Укажите сумму"],
   ])("rejects %j", (patch, fieldName, message) => {
     expect(errors(tripFormSchema(true).safeParse({ ...trip, ...patch }))[fieldName]).toBe(message);
   });
 
   it("does not ask for a commission the server computes", () => {
-    expect(tripFormSchema(false).safeParse({ ...trip, commission: "" }).success).toBe(true);
+    expect(tripFormSchema(false).safeParse({ ...trip, commission_amount: "" }).success).toBe(true);
   });
 });
 
 describe("shift form", () => {
-  const shift = { start: "2026-10-01T08:00", end: "2026-10-01T18:00", note: "" };
+  const shift = { started_at: "2026-10-01T08:00", ended_at: "2026-10-01T18:00", note: "" };
 
   it("a past shift needs both ends, an edit only the start", () => {
-    expect(errors(shiftFormSchema("past").safeParse({ ...shift, end: "" }))).toEqual({ end: "Укажите окончание" });
-    expect(shiftFormSchema("edit").safeParse({ ...shift, end: "" }).success).toBe(true);
-    expect(shiftFormSchema("close").safeParse({ start: "", end: "", note: "" }).success).toBe(true);
+    expect(errors(shiftFormSchema("past").safeParse({ ...shift, ended_at: "" }))).toEqual({ ended_at: "Укажите окончание" });
+    expect(shiftFormSchema("edit").safeParse({ ...shift, ended_at: "" }).success).toBe(true);
+    expect(shiftFormSchema("close").safeParse({ started_at: "", ended_at: "", note: "" }).success).toBe(true);
   });
 
   it("at most 24 hours", () => {
-    expect(errors(shiftFormSchema("past").safeParse({ ...shift, end: "2026-10-02T08:01" })).end).toBe(
+    expect(errors(shiftFormSchema("past").safeParse({ ...shift, ended_at: "2026-10-02T08:01" })).ended_at).toBe(
       "Смена длится не больше 24 часов",
     );
   });
@@ -57,11 +57,11 @@ describe("driver form", () => {
   const driver = {
     email: "erlan@example.com",
     password: "temp-pass-1",
-    name: "Ерлан",
+    full_name: "Ерлан",
     car_model: "Hyundai Accent",
     car_plate: "777 aaa 02",
-    default_tz: "Asia/Almaty",
-    default_commission_pct: "12,5",
+    timezone: "Asia/Almaty",
+    commission_percent: "12,5",
   };
 
   it("accepts a valid driver", () => {
@@ -73,10 +73,10 @@ describe("driver form", () => {
     [{ password: "short" }, "password"],
     [{ password: "onlyletters" }, "password"],
     [{ password: "1234567890" }, "password"],
-    [{ name: "   " }, "name"],
-    [{ name: "12345" }, "name"],
+    [{ full_name: "   " }, "full_name"],
+    [{ full_name: "12345" }, "full_name"],
     [{ car_plate: "A123BC" }, "car_plate"],
-    [{ default_commission_pct: "100" }, "default_commission_pct"],
+    [{ commission_percent: "100" }, "commission_percent"],
   ])("rejects %j", (patch, fieldName) => {
     expect(Object.keys(errors(driverFormSchema(true).safeParse({ ...driver, ...patch })))).toEqual([fieldName]);
   });

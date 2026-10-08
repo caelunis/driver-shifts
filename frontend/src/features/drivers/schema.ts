@@ -14,7 +14,7 @@ export function driverFormSchema(creating: boolean) {
     .object({
       email: creating ? z.email("Некорректный e-mail") : z.string(),
       password: z.string().max(128, "Не больше 128 символов"),
-      name: z
+      full_name: z
         .string()
         .trim()
         .min(1, "Укажите имя")
@@ -22,8 +22,8 @@ export function driverFormSchema(creating: boolean) {
         .refine((v) => /\p{L}/u.test(v), "Имя должно содержать буквы"),
       car_model: z.string().trim().max(100, "Не больше 100 символов"),
       car_plate: z.string().refine((v) => !v.trim() || normalizePlate(v) !== null, "Номер в формате 123 ABC 02"),
-      default_tz: z.string().min(1, "Выберите часовой пояс"),
-      default_commission_pct: z
+      timezone: z.string().min(1, "Выберите часовой пояс"),
+      commission_percent: z
         .string()
         .refine((v) => {
           if (!v.trim()) return true;

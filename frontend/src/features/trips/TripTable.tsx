@@ -29,17 +29,17 @@ export function TripTable({ trips, day, onEdit, onDelete }: Props) {
         {trips.map((t) => (
           <tr key={t.id}>
             <td className="time">
-              {time(t.start)}–{time(t.end)}
-              <span className="muted small hide-sm"> · {formatDuration(minutesBetween(t.start, t.end))}</span>
+              {time(t.started_at)}–{time(t.ended_at)}
+              <span className="muted small hide-sm"> · {formatDuration(minutesBetween(t.started_at, t.ended_at))}</span>
               {/* The payment column is hidden on phones: shown under the time instead */}
-              <span className={`pay ${t.payment} small show-sm`}>{t.payment === "cash" ? "Наличные" : "Карта"}</span>
+              <span className={`pay ${t.payment_method} small show-sm`}>{t.payment_method === "cash" ? "Наличные" : "Карта"}</span>
             </td>
-            <td className="num">{formatMoney(t.amount)}</td>
+            <td className="num">{formatMoney(t.fare)}</td>
             <td className="hide-sm">
-              <span className={`pay ${t.payment}`}>{t.payment === "cash" ? "Наличные" : "Карта"}</span>
+              <span className={`pay ${t.payment_method}`}>{t.payment_method === "cash" ? "Наличные" : "Карта"}</span>
             </td>
-            <td className="num hide-sm">{formatMoney(t.commission)}</td>
-            <td className="num strong">{formatMoney(t.amount - t.commission)}</td>
+            <td className="num hide-sm">{formatMoney(t.commission_amount)}</td>
+            <td className="num strong">{formatMoney(t.fare - t.commission_amount)}</td>
             {actions && (
               <td className="row-actions">
                 {onEdit && (

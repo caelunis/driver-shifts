@@ -3,7 +3,7 @@ import { expect, test, type APIRequestContext } from "@playwright/test";
 import { ADMIN, apiAs, createDriver, deleteDriver, loginUi, PASSWORD, pastDay, unique } from "@e2e/helpers";
 
 let admin: APIRequestContext;
-const cleanup: number[] = [];
+const cleanup: string[] = [];
 
 test.beforeAll(async ({ baseURL }) => {
   admin = await apiAs(baseURL!, ADMIN.email, ADMIN.password);
@@ -38,7 +38,7 @@ test("creates a driver; server-side rules show under the fields", async ({ page 
   await expect(page.getByText(`Водитель Айдар ${tag} добавлен`)).toBeVisible();
   await expect(page.getByRole("heading", { name: `Айдар ${tag}` })).toBeVisible();
   await expect(page.getByText(`Kia Rio, ${plate.toUpperCase()}`)).toBeVisible();
-  cleanup.push(Number(page.url().match(/drivers\/(\d+)/)![1]));
+  cleanup.push(page.url().match(/drivers\/([0-9a-f-]{36})/)![1]!);
 });
 
 test("a taken email is reported under the email field", async ({ page }) => {
@@ -55,21 +55,27 @@ test("a taken email is reported under the email field", async ({ page }) => {
 
 test("corrects a driver's trip and deletes the driver", async ({ page, baseURL }) => {
   // The driver's own data, entered through the API as the driver would
-  const d = await createDriver(admin, { default_commission_pct: 15 });
+  const d = await createDriver(admin, { commission_percent: 15 });
   const day = pastDay(3);
   const asDriver = await apiAs(baseURL!, d.email, PASSWORD);
   const shift = await (
-    await asDriver.post("/api/shifts", { data: { start: `${day}T09:00:00+05:00`, end: `${day}T13:00:00+05:00` } })
+    await asDriver.post("/api/v1/shifts", { data: { started_at: `${day}T09:00:00+05:00`, ended_at: `${day}T13:00:00+05:00` } })
   ).json();
-  const trip = await asDriver.post("/api/trips", {
-    data: { shift_id: shift.id, start: `${day}T09:10:00+05:00`, end: `${day}T09:40:00+05:00`, amount: 2000, payment: "cash" },
+  const trip = await asDriver.post("/api/v1/trips", {
+    data: {
+      shift_id: shift.id,
+      started_at: `${day}T09:10:00+05:00`,
+      ended_at: `${day}T09:40:00+05:00`,
+      fare: 2000,
+      payment_method: "cash",
+    },
   });
   expect(trip.status()).toBe(201);
   await asDriver.dispose();
 
   await page.getByRole("searchbox", { name: "Поиск водителей" }).fill(d.email);
-  await page.getByRole("link", { name: d.name }).click();
-  await expect(page.getByRole("heading", { name: d.name })).toBeVisible();
+  await page.getByRole("link", { name: d.fullName }).click();
+  await expect(page.getByRole("heading", { name: d.fullName })).toBeVisible();
   // Opens on the driver's last day with a shift
   await expect(page.getByRole("cell", { name: "1 700 ₸" })).toBeVisible();
 
@@ -96,6 +102,6 @@ test("a driver cannot open admin pages", async ({ page, baseURL }) => {
   await loginUi(page, d.email, PASSWORD);
   await page.goto("/admin/drivers");
   await expect(page).toHaveURL(/\/day\//); // sent back to the diary
-  const r = await (await apiAs(baseURL!, d.email, PASSWORD)).get("/api/admin/drivers");
+  const r = await (await apiAs(baseURL!, d.email, PASSWORD)).get("/api/v1/admin/drivers");
   expect(r.status()).toBe(403);
 });

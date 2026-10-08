@@ -1,6 +1,7 @@
 from datetime import date, datetime
+from uuid import UUID
 
-from pydantic import EmailStr, Field, ValidationInfo, field_validator
+from pydantic import ConfigDict, EmailStr, Field, ValidationInfo, field_validator
 from pydantic_core import PydanticCustomError
 
 from app.core.constants import DEFAULT_TZ, PASSWORD_MAX_LENGTH
@@ -22,35 +23,41 @@ class LoginIn(StrictModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=PASSWORD_MAX_LENGTH)
 
+    model_config = ConfigDict(
+        json_schema_extra={"examples": [{"email": "demo@example.com", "password": "demo12345"}]}
+    )
+
 
 class Profile(ResponseModel):
-    """The logged-in account. Driver fields are None for admins: an admin is a
+    """The logged-in account. Driver fields are null for admins: an admin is a
     user without a driver profile."""
 
-    id: int
+    id: UUID
     email: str
     role: Role
-    name: str | None = None
+    full_name: str | None = None
     car_model: str | None = None
-    car_plate: str | None = None  # normalized, e.g. "123ABC02"
-    default_tz: str | None = None
-    default_commission_pct: float | None = None
+    car_plate: str | None = Field(default=None, description='Normalized, e.g. "123ABC02"')
+    timezone: str | None = Field(default=None, description="IANA name, e.g. Asia/Almaty")
+    commission_percent: float | None = Field(
+        default=None, description="Set by the admin; null: the driver enters each commission"
+    )
 
 
 class SelfProfileUpdate(StrictModel):
-    """PATCH /api/me: a driver may change only their timezone."""
+    """A driver may change only their timezone."""
 
-    default_tz: IanaTz
+    timezone: IanaTz
 
 
 class DriverCreate(StrictModel):
     email: EmailStr
-    password: Password
-    name: PersonName
+    password: Password = Field(description="8+ characters with a letter and a digit, not the email")
+    full_name: PersonName
     car_model: CleanText = ""
-    car_plate: CarPlate | None = None
-    default_tz: IanaTz = DEFAULT_TZ
-    default_commission_pct: CommissionPct | None = None
+    car_plate: CarPlate | None = Field(default=None, description="Kazakhstan plate, e.g. 123 ABC 02")
+    timezone: IanaTz = DEFAULT_TZ
+    commission_percent: CommissionPct | None = None
 
     @field_validator("password")
     @classmethod
@@ -60,17 +67,17 @@ class DriverCreate(StrictModel):
 
 
 class DriverUpdate(StrictModel):
-    """PATCH /api/admin/drivers/{id}: only the fields that were sent are changed."""
+    """Only the fields that were sent are changed."""
 
-    name: PersonName | None = None
+    full_name: PersonName | None = None
     car_model: CleanText | None = None
-    car_plate: CarPlate | None = None  # null removes the plate
-    default_tz: IanaTz | None = None
-    default_commission_pct: CommissionPct | None = None  # null clears it
+    car_plate: CarPlate | None = Field(default=None, description="null removes the plate")
+    timezone: IanaTz | None = None
+    commission_percent: CommissionPct | None = Field(default=None, description="null: the driver enters it")
     # Compared with the email by the service, which knows the stored one
-    password: Password | None = None
+    password: Password | None = Field(default=None, description="Ends all of the driver's sessions")
 
-    @field_validator("name", "car_model", "default_tz", "password")
+    @field_validator("full_name", "car_model", "timezone", "password")
     @classmethod
     def not_null(cls, v: str | None, info: ValidationInfo) -> str:
         # Runs only for fields the client sent: rejects an explicit null
@@ -84,11 +91,11 @@ class DriverUpdate(StrictModel):
 class DriverInfo(Profile):
     """A driver as the admin sees them: profile plus totals."""
 
-    name: str
+    full_name: str
     car_model: str
-    default_tz: str
+    timezone: str
     created_at: datetime
     trips_count: int
     revenue: int
-    net: int
-    last_trip_day: date | None
+    net_income: int
+    last_work_date: date | None = Field(description="The latest date with a trip")

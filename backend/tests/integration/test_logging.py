@@ -25,7 +25,7 @@ def logs(caplog):
 
 
 def login(client, email="driver@example.com", password=PASSWORD):
-    return client.post("/api/auth/login", json={"email": email, "password": password})
+    return client.post("/api/v1/auth/login", json={"email": email, "password": password})
 
 
 def records(caplog, message):
@@ -65,12 +65,12 @@ def test_access_log_line(app, driver_id, logs):
     client = TestClient(app)
     login(client)
     r = client.get(
-        "/api/me", headers={"X-Request-ID": "req-0001-abcd", "X-Forwarded-For": "10.0.0.1, 203.0.113.7"}
+        "/api/v1/me", headers={"X-Request-ID": "req-0001-abcd", "X-Forwarded-For": "10.0.0.1, 203.0.113.7"}
     )
-    [line] = [rec for rec in records(logs, "request") if rec.path == "/api/me"]
+    [line] = [rec for rec in records(logs, "request") if rec.path == "/api/v1/me"]
     assert (line.method, line.status, line.levelname) == ("GET", 200, "INFO")
     assert line.request_id == "req-0001-abcd" == r.headers["x-request-id"]
-    assert line.user_id == driver_id  # who asked
+    assert str(line.user_id) == driver_id  # who asked
     assert line.client == "203.0.113.7"  # the address nginx appended, not what the client claimed
     assert line.duration_ms >= 0
 
@@ -87,9 +87,13 @@ def test_health_checks_stay_out_of_the_info_log(app, logs):
 def test_events_name_the_actor_and_the_object(app, driver_id, logs):
     client = TestClient(app)
     login(client)
-    shift = client.post("/api/shifts", json={}).json()
+    shift = client.post("/api/v1/shifts", json={}).json()
     [started] = records(logs, "shift_started")
-    assert (started.driver_id, started.shift_id, started.user_id) == (driver_id, shift["id"], driver_id)
+    assert tuple(map(str, (started.driver_id, started.shift_id, started.user_id))) == (
+        driver_id,
+        shift["id"],
+        driver_id,
+    )
     assert started.request_id is not None
 
 
@@ -107,11 +111,11 @@ def test_secrets_never_reach_the_log(app, db, logs):
     admin = TestClient(app)
     login(admin, "admin@example.com")
     admin.post(
-        "/api/admin/drivers",
-        json={"email": "new@example.com", "password": "brand-new-secret-1", "name": "Новый"},
+        "/api/v1/admin/drivers",
+        json={"email": "new@example.com", "password": "brand-new-secret-1", "full_name": "Новый"},
     )
-    new_id = admin.get("/api/admin/drivers").json()[0]["id"]
-    admin.patch(f"/api/admin/drivers/{new_id}", json={"password": "another-secret-2"})
+    new_id = admin.get("/api/v1/admin/drivers").json()[0]["id"]
+    admin.patch(f"/api/v1/admin/drivers/{new_id}", json={"password": "another-secret-2"})
     out = as_json(logs)
     for secret in (PASSWORD, "brand-new-secret-1", "another-secret-2", admin.cookies["session"]):
         assert secret not in out
@@ -125,13 +129,13 @@ def test_secrets_never_reach_the_log(app, db, logs):
 def test_unhandled_error_is_logged_with_traceback_and_hidden_from_the_client(db, driver_id, logs):
     app = create_app(db.database)
 
-    @app.get("/api/boom")
+    @app.get("/api/v1/boom")
     async def boom() -> None:
         raise RuntimeError("secret internals")
 
     client = TestClient(app)
     login(client)
-    r = client.get("/api/boom", headers={"X-Request-ID": "boom-req-0001"})
+    r = client.get("/api/v1/boom", headers={"X-Request-ID": "boom-req-0001"})
     assert r.status_code == 500
     body = r.json()["error"]
     assert body["code"] == "internal_error"
@@ -140,5 +144,5 @@ def test_unhandled_error_is_logged_with_traceback_and_hidden_from_the_client(db,
     [err] = records(logs, "unhandled_error")
     assert err.request_id == "boom-req-0001" and err.exc_info is not None
     assert json.loads(JsonFormatter().format(err))["exc"].startswith("Traceback")
-    [access] = [rec for rec in records(logs, "request") if rec.path == "/api/boom"]
+    [access] = [rec for rec in records(logs, "request") if rec.path == "/api/v1/boom"]
     assert (access.status, access.levelname) == (500, "ERROR")

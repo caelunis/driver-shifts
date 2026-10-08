@@ -107,7 +107,7 @@ test("a shift that is still open cannot be started twice", async ({ page }) => {
   await page.getByRole("button", { name: "Начать смену" }).click();
   await expect(page.getByText("Смена идёт")).toBeVisible();
   // Another tab starts a shift meanwhile: the server refuses, the page explains
-  const r = await page.request.post("/api/shifts", { data: {} });
+  const r = await page.request.post("/api/v1/shifts", { data: {} });
   expect(r.status()).toBe(409);
   expect((await r.json()).error.code).toBe("shift_already_open");
 });

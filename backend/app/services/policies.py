@@ -31,25 +31,27 @@ class ShiftPolicy:
     def editable_by_driver(shift: Shift) -> None:
         """A driver may change a shift and its trips while it is open or for 7 days after
         it ended; older shifts are only changed by the admin."""
-        if shift.end is not None and shift.end < clock.now() - BACKFILL_WINDOW:
+        if shift.ended_at is not None and shift.ended_at < clock.now() - BACKFILL_WINDOW:
             raise ConflictError(
                 ErrorCode.SHIFT_LOCKED, "The shift ended more than 7 days ago", days=BACKFILL_WINDOW.days
             )
 
     @classmethod
-    def valid_end(cls, start: datetime, end: datetime) -> None:
-        if end <= start:
-            raise DomainValidationError("end", ErrorCode.END_BEFORE_START, "End must be later than start")
-        if end - start > MAX_SHIFT:
+    def valid_end(cls, started_at: datetime, ended_at: datetime) -> None:
+        if ended_at <= started_at:
             raise DomainValidationError(
-                "end", ErrorCode.SHIFT_TOO_LONG, "A shift lasts at most 24 hours", hours=MAX_SHIFT_HOURS
+                "ended_at", ErrorCode.END_BEFORE_START, "End must be later than start"
             )
-        cls.not_in_future("end", end)
+        if ended_at - started_at > MAX_SHIFT:
+            raise DomainValidationError(
+                "ended_at", ErrorCode.SHIFT_TOO_LONG, "A shift lasts at most 24 hours", hours=MAX_SHIFT_HOURS
+            )
+        cls.not_in_future("ended_at", ended_at)
 
     @staticmethod
-    def not_longer_than_max(field: str, start: datetime) -> None:
-        """An open shift started at `start` must not already exceed the maximum."""
-        if clock.now() - start > MAX_SHIFT:
+    def not_longer_than_max(field: str, started_at: datetime) -> None:
+        """An open shift started at `started_at` must not already exceed the maximum."""
+        if clock.now() - started_at > MAX_SHIFT:
             raise DomainValidationError(
                 field, ErrorCode.SHIFT_TOO_LONG, "A shift lasts at most 24 hours", hours=MAX_SHIFT_HOURS
             )

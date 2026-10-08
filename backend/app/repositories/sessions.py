@@ -1,6 +1,7 @@
 """Login sessions. Only a hash of each token is stored."""
 
 from datetime import datetime
+from uuid import UUID
 
 from app.core.enums import Role
 from app.domain.models import Principal
@@ -8,7 +9,7 @@ from app.repositories.base import Repository
 
 
 class SessionRepository(Repository):
-    async def insert(self, token_hash: str, user_id: int, expires_at: datetime) -> None:
+    async def insert(self, token_hash: str, user_id: UUID, expires_at: datetime) -> None:
         await self._run(
             "INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (%s, %s, %s)",
             (token_hash, user_id, expires_at),
@@ -26,5 +27,5 @@ class SessionRepository(Repository):
     async def delete(self, token_hash: str) -> None:
         await self._run("DELETE FROM sessions WHERE token_hash = %s", (token_hash,))
 
-    async def delete_all_of(self, user_id: int) -> None:
+    async def delete_all_of(self, user_id: UUID) -> None:
         await self._run("DELETE FROM sessions WHERE user_id = %s", (user_id,))

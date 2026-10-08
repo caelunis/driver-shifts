@@ -39,7 +39,7 @@ export function Layout() {
           )}
           {me && (
             <span className="who" title={me.email}>
-              {admin ? me.email : [me.name, carText(me)].filter(Boolean).join(" · ")}
+              {admin ? me.email : [me.full_name, carText(me)].filter(Boolean).join(" · ")}
             </span>
           )}
           <ThemeToggle />

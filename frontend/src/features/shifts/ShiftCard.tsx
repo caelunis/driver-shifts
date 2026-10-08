@@ -53,37 +53,37 @@ export function ShiftCard({ scope, shift, trips }: Props) {
     onError: (e) => toast.err(errorMessage(e)),
   });
 
-  const lastEnd = trips.length ? trips[trips.length - 1]!.end : null;
-  const end = shift.end
-    ? isoDay(shift.end) === shift.local_day
-      ? hhmm(shift.end)
-      : formatDateTime(shift.end)
+  const lastEnd = trips.length ? trips[trips.length - 1]!.ended_at : null;
+  const ended_at = shift.ended_at
+    ? isoDay(shift.ended_at) === shift.work_date
+      ? hhmm(shift.ended_at)
+      : formatDateTime(shift.ended_at)
     : "сейчас";
 
   return (
-    <article className={open ? "panel shift open" : "panel shift"} aria-label={`Смена ${hhmm(shift.start)}`}>
+    <article className={open ? "panel shift open" : "panel shift"} aria-label={`Смена ${hhmm(shift.started_at)}`}>
       <header className="shift-head">
         <div>
           <h3>
-            {hhmm(shift.start)} – {end}
+            {hhmm(shift.started_at)} – {ended_at}
             {open && <span className="pill live">идёт</span>}
           </h3>
           <p className="muted small">
-            {formatDuration(s.duration_min)} · {tripsText(s.count)}
-            {s.net_per_hour != null && ` · ${formatMoney(s.net_per_hour)}/ч`}
+            {formatDuration(s.duration_minutes)} · {tripsText(s.trips_count)}
+            {s.net_income_per_hour != null && ` · ${formatMoney(s.net_income_per_hour)}/ч`}
             {shift.note && ` · ${shift.note}`}
           </p>
         </div>
         <div className="shift-net">
           <span className="muted small">На руки</span>
-          <strong>{formatMoney(s.net)}</strong>
+          <strong>{formatMoney(s.net_income)}</strong>
         </div>
       </header>
 
       {trips.length > 0 ? (
         <TripTable
           trips={trips}
-          day={shift.local_day}
+          day={shift.work_date}
           onEdit={canEdit ? (trip) => setDialog({ kind: "edit-trip", trip }) : undefined}
           onDelete={canEdit ? (trip) => setDialog({ kind: "delete-trip", trip }) : undefined}
         />
@@ -121,7 +121,7 @@ export function ShiftCard({ scope, shift, trips }: Props) {
         onClose={close}
         shift={shift}
         trip={dialog.kind === "edit-trip" ? dialog.trip : undefined}
-        defaultStart={isoToLocalCeil(lastEnd ?? shift.start)}
+        defaultStart={isoToLocalCeil(lastEnd ?? shift.started_at)}
       />
       <ShiftDialog
         scope={scope}
@@ -142,7 +142,7 @@ export function ShiftCard({ scope, shift, trips }: Props) {
         }
       >
         {dialog.kind === "delete-trip" &&
-          `${hhmm(dialog.trip.start)}–${hhmm(dialog.trip.end)}, ${formatMoney(dialog.trip.amount)}. Отменить удаление нельзя.`}
+          `${hhmm(dialog.trip.started_at)}–${hhmm(dialog.trip.ended_at)}, ${formatMoney(dialog.trip.fare)}. Отменить удаление нельзя.`}
       </ConfirmDialog>
       <ConfirmDialog
         open={dialog.kind === "delete-shift"}

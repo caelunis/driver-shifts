@@ -27,15 +27,15 @@ DEMO_ADMIN = ("admin@example.com", "admin12345")
 # Demo credentials are public on purpose: they are printed in the README
 DEMO_DRIVERS = [
     # (account, sample shifts file or None)
-    (DriverCreate(email="demo@example.com", password="demo12345", name="Демо-водитель"), DEMO_SHIFTS),
+    (DriverCreate(email="demo@example.com", password="demo12345", full_name="Демо-водитель"), DEMO_SHIFTS),
     (
         DriverCreate(
             email="erlan@example.com",
             password="erlan12345",
-            name="Ерлан Сейтжанов",
+            full_name="Ерлан Сейтжанов",
             car_model="Hyundai Accent",
             car_plate="777 AAA 02",
-            default_commission_pct=15,
+            commission_percent=15,
         ),
         None,
     ),
@@ -43,7 +43,7 @@ DEMO_DRIVERS = [
 
 
 def _times(item: dict[str, Any]) -> tuple[datetime, datetime]:
-    return datetime.fromisoformat(item["start"]), datetime.fromisoformat(item["end"])
+    return datetime.fromisoformat(item["started_at"]), datetime.fromisoformat(item["ended_at"])
 
 
 async def seed(db: Database) -> bool:

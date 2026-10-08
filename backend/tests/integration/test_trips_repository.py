@@ -8,15 +8,16 @@ from app.db.database import Database
 from app.domain.models import Trip
 from app.schemas.trips import TripIn
 from app.services.trips import TripService
+from tests.api import tid
 from tests.factories import create_driver, day_shift
 
 NIGHT = {
-    "id": "n1",
-    "start": "2026-10-02T02:10:00+05:00",
-    "end": "2026-10-02T02:35:00+05:00",
-    "amount": 2800,
-    "payment": "cash",
-    "commission": 420,
+    "id": tid("n1"),
+    "started_at": "2026-10-02T02:10:00+05:00",
+    "ended_at": "2026-10-02T02:35:00+05:00",
+    "fare": 2800,
+    "payment_method": "cash",
+    "commission_amount": 420,
 }
 
 
@@ -32,7 +33,7 @@ def night(shift_id, **changes) -> TripIn:
 def raw_trip(driver_id: int, trip_in: TripIn, **changes) -> Trip:
     """A domain trip built directly, bypassing the service's checks."""
     data = trip_in.model_dump()
-    return Trip(**{**data, "driver_id": driver_id, "commission": data["commission"], **changes})
+    return Trip(**{**data, "driver_id": driver_id, "commission_amount": data["commission_amount"], **changes})
 
 
 def insert_directly(db, trip: Trip) -> None:
@@ -53,8 +54,8 @@ def test_offset_survives_roundtrip(trips, driver_id, night_shift):
     trips.add(driver_id, night(night_shift))
     assert trips.for_day(driver_id, date(2026, 10, 1)) == []
     [trip] = trips.for_day(driver_id, date(2026, 10, 2))
-    assert trip.start.isoformat() == "2026-10-02T02:10:00+05:00"
-    assert trip.end.isoformat() == "2026-10-02T02:35:00+05:00"
+    assert trip.started_at.isoformat() == "2026-10-02T02:10:00+05:00"
+    assert trip.ended_at.isoformat() == "2026-10-02T02:35:00+05:00"
 
 
 def test_concurrent_inserts_create_exactly_one_row(trips, driver_id, night_shift):
@@ -69,10 +70,10 @@ def test_same_id_for_different_drivers_is_not_a_conflict(db, trips, driver_id, n
     other = create_driver(db, "other@example.com", "horse-battery-9")
     other_shift = day_shift(db, other, "2026-10-02", start="02:00", end="10:00")
     _, created_a = trips.add(driver_id, night(night_shift))
-    _, created_b = trips.add(other, night(other_shift, amount=9999))
+    _, created_b = trips.add(other, night(other_shift, fare=9999))
     assert created_a and created_b
-    assert trips.for_day(driver_id, date(2026, 10, 2))[0].amount == 2800
-    assert trips.for_day(other, date(2026, 10, 2))[0].amount == 9999
+    assert trips.for_day(driver_id, date(2026, 10, 2))[0].fare == 2800
+    assert trips.for_day(other, date(2026, 10, 2))[0].fare == 9999
 
 
 def test_days_aggregate_by_shift_day(db, trips, driver_id, night_shift):
@@ -82,20 +83,20 @@ def test_days_aggregate_by_shift_day(db, trips, driver_id, night_shift):
         driver_id,
         night(
             third,
-            id="n2",
-            start="2026-10-03T10:00:00+05:00",
-            end="2026-10-03T10:30:00+05:00",
-            amount=1000,
-            commission=100,
+            id=tid("n2"),
+            started_at="2026-10-03T10:00:00+05:00",
+            ended_at="2026-10-03T10:30:00+05:00",
+            fare=1000,
+            commission_amount=100,
         ),
     )
-    days = [(d.date.isoformat(), d.count, d.net) for d in trips.days(driver_id)]
+    days = [(d.work_date.isoformat(), d.trips_count, d.net_income) for d in trips.days(driver_id)]
     assert days == [("2026-10-02", 1, 2380), ("2026-10-03", 1, 900)]
 
 
 def test_database_rejects_commission_equal_to_amount(db, driver_id, night_shift):
     # Bypass model validation: the database constraint is the last line of defence
-    trip = raw_trip(driver_id, night(night_shift), commission=NIGHT["amount"])
+    trip = raw_trip(driver_id, night(night_shift), commission_amount=NIGHT["fare"])
     with pytest.raises(psycopg.errors.CheckViolation):
         insert_directly(db, trip)
 

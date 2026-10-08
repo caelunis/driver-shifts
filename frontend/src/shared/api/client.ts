@@ -16,6 +16,9 @@ export class ApiError extends Error {
   }
 }
 
+/** The versioned API; every path the app calls starts with it */
+export const API_V1 = "/api/v1";
+
 type Method = "GET" | "POST" | "PATCH" | "DELETE";
 
 /**

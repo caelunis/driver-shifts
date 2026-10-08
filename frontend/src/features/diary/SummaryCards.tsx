@@ -4,11 +4,11 @@ import { tripsText } from "@/shared/lib/plural";
 
 export function SummaryCards({ s }: { s: DaySummary }) {
   const cards: [string, string, string?][] = [
-    ["На руки", formatMoney(s.net), tripsText(s.count)],
+    ["На руки", formatMoney(s.net_income), tripsText(s.trips_count)],
     ["Выручка", formatMoney(s.revenue)],
-    ["Комиссия", formatMoney(s.commission)],
-    ["Наличные", formatMoney(s.cash.amount), tripsText(s.cash.count)],
-    ["Карта", formatMoney(s.card.amount), tripsText(s.card.count)],
+    ["Комиссия", formatMoney(s.commission_total)],
+    ["Наличные", formatMoney(s.cash.amount), tripsText(s.cash.trips_count)],
+    ["Карта", formatMoney(s.card.amount), tripsText(s.card.trips_count)],
   ];
   return (
     <div className="stats">

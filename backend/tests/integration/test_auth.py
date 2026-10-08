@@ -5,7 +5,7 @@ from app.main import create_app
 from tests.api import code, error
 from tests.factories import create_driver
 
-USER = {"email": "Driver@Example.com", "password": "secret-pass-1", "name": "Айдар"}
+USER = {"email": "Driver@Example.com", "password": "secret-pass-1", "full_name": "Айдар"}
 
 
 @pytest.fixture
@@ -15,7 +15,7 @@ def app(db):
 
 @pytest.fixture
 def account(db):
-    return create_driver(db, USER["email"], USER["password"], name=USER["name"])
+    return create_driver(db, USER["email"], USER["password"], name=USER["full_name"])
 
 
 @pytest.fixture
@@ -27,7 +27,7 @@ def client(app, account):
 
 
 def login(client, email=USER["email"], password=USER["password"]):
-    return client.post("/api/auth/login", json={"email": email, "password": password})
+    return client.post("/api/v1/auth/login", json={"email": email, "password": password})
 
 
 # --- accounts are created by an admin, there is no self-registration ---
@@ -35,9 +35,9 @@ def login(client, email=USER["email"], password=USER["password"]):
 
 def test_self_registration_is_gone(app, client):
     # Anonymous: denied before routing, whether or not the path exists
-    r = TestClient(app).post("/api/auth/register", json={**USER, "email": "new@example.com"})
+    r = TestClient(app).post("/api/v1/auth/register", json={**USER, "email": "new@example.com"})
     assert r.status_code == 401
-    r = client.post("/api/auth/register", json={**USER, "email": "new@example.com"})
+    r = client.post("/api/v1/auth/register", json={**USER, "email": "new@example.com"})
     assert r.status_code == 404
 
 
@@ -83,20 +83,20 @@ def test_session_token_is_stored_hashed(client, db):
 
 def test_login_and_logout(app, account):
     fresh = TestClient(app)
-    assert fresh.get("/api/me").status_code == 401
+    assert fresh.get("/api/v1/me").status_code == 401
     assert login(fresh).status_code == 200
-    assert fresh.get("/api/me").status_code == 200
+    assert fresh.get("/api/v1/me").status_code == 200
 
-    r = fresh.post("/api/auth/logout", json={})
+    r = fresh.post("/api/v1/auth/logout", json={})
     assert r.status_code == 204
-    assert fresh.get("/api/me").status_code == 401
+    assert fresh.get("/api/v1/me").status_code == 401
 
 
 def test_logout_invalidates_session_server_side(client):
     token = client.cookies["session"]
-    client.post("/api/auth/logout", json={})
+    client.post("/api/v1/auth/logout", json={})
     stolen = TestClient(client.app, cookies={"session": token})
-    assert stolen.get("/api/me").status_code == 401
+    assert stolen.get("/api/v1/me").status_code == 401
 
 
 def test_wrong_password_and_unknown_email_look_the_same(app, account):
@@ -118,61 +118,63 @@ def test_login_is_rate_limited_after_failures(app, account):
 def test_expired_session_is_rejected(client, db):
     with db.connection() as conn:
         conn.execute("UPDATE sessions SET expires_at = now() - interval '1 second'")
-    assert client.get("/api/me").status_code == 401
+    assert client.get("/api/v1/me").status_code == 401
 
 
 def test_forged_cookie_is_rejected(app):
-    assert TestClient(app, cookies={"session": "garbage"}).get("/api/me").status_code == 401
+    assert TestClient(app, cookies={"session": "garbage"}).get("/api/v1/me").status_code == 401
 
 
 # --- CSRF ---
 
 
 def test_form_encoded_login_is_rejected(app, account):
-    r = TestClient(app).post("/api/auth/login", data={"email": USER["email"], "password": USER["password"]})
+    r = TestClient(app).post(
+        "/api/v1/auth/login", data={"email": USER["email"], "password": USER["password"]}
+    )
     assert r.status_code == 422
 
 
 def test_logout_requires_json(client):
-    assert client.post("/api/auth/logout").status_code == 415
-    assert client.get("/api/me").status_code == 200
+    assert client.post("/api/v1/auth/logout").status_code == 415
+    assert client.get("/api/v1/me").status_code == 200
 
 
 # --- profile: a driver may change only the timezone ---
 
 
 def test_driver_changes_own_timezone(client):
-    r = client.patch("/api/me", json={"default_tz": "Asia/Aqtau"})
+    r = client.patch("/api/v1/me", json={"timezone": "Asia/Aqtau"})
     assert r.status_code == 200
-    assert r.json()["default_tz"] == "Asia/Aqtau"
-    assert client.get("/api/me").json()["default_tz"] == "Asia/Aqtau"
+    assert r.json()["timezone"] == "Asia/Aqtau"
+    assert client.get("/api/v1/me").json()["timezone"] == "Asia/Aqtau"
 
 
 @pytest.mark.parametrize(
     "field, value",
     [
-        ("name", "Другое имя"),
+        ("full_name", "Другое имя"),
         ("car_model", "Toyota Camry"),
         ("car_plate", "123 ABC 02"),
-        ("default_commission_pct", 5),
+        ("commission_percent", 5),
         ("email", "evil@example.com"),
         ("password", "new-password"),
         ("role", "admin"),
     ],
 )
 def test_driver_cannot_change_admin_managed_fields(client, field, value):
-    before = client.get("/api/me").json()
-    r = client.patch("/api/me", json={field: value})
+    before = client.get("/api/v1/me").json()
+    r = client.patch("/api/v1/me", json={field: value})
     assert r.status_code == 403
     assert code(r) == "admin_managed_fields"
     assert r.json()["error"]["ctx"]["fields"] == [field]
-    assert client.get("/api/me").json() == before
+    assert client.get("/api/v1/me").json() == before
 
 
 def test_mixed_patch_is_rejected_as_a_whole(client):
-    r = client.patch("/api/me", json={"default_tz": "Asia/Aqtau", "car_model": "x"})
+    r = client.patch("/api/v1/me", json={"timezone": "Asia/Aqtau", "car_model": "x"})
     assert r.status_code == 403
-    assert client.get("/api/me").json()["default_tz"] == "Asia/Almaty"  # nothing applied
+    assert client.get("/api/v1/me").json()["timezone"] == "Asia/Almaty"  # nothing applied
 
 
 @pytest.mark.parametrize(
@@ -186,12 +188,12 @@ def test_mixed_patch_is_rejected_as_a_whole(client):
     ],
 )
 def test_timezone_validation(client, value, expected):
-    r = client.patch("/api/me", json={"default_tz": value})
+    r = client.patch("/api/v1/me", json={"timezone": value})
     assert r.status_code == 422
-    assert error(r) == ("default_tz", expected)
+    assert error(r) == ("timezone", expected)
 
 
 def test_profile_requires_auth(app):
     anon = TestClient(app)
-    assert anon.get("/api/me").status_code == 401
-    assert anon.patch("/api/me", json={"default_tz": "Asia/Aqtau"}).status_code == 401
+    assert anon.get("/api/v1/me").status_code == 401
+    assert anon.patch("/api/v1/me", json={"timezone": "Asia/Aqtau"}).status_code == 401

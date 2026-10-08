@@ -5,6 +5,7 @@ import logging
 from collections.abc import Mapping
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 from pydantic_core import PydanticCustomError
 
@@ -20,7 +21,7 @@ from app.schemas.common import check_password
 log = logging.getLogger(__name__)
 
 
-def _pct(value: float | None) -> Decimal | None:
+def _percent(value: float | None) -> Decimal | None:
     # Through str: Decimal(12.3) would carry the float's binary error
     return None if value is None else Decimal(str(value))
 
@@ -31,16 +32,16 @@ class AccountService:
 
     # --- any account ---
 
-    async def profile(self, user_id: int) -> AccountProfile:
+    async def profile(self, user_id: UUID) -> AccountProfile:
         async with self._db.unit_of_work() as uow:
             profile = await uow.drivers.profile(user_id)
         if profile is None:
             raise NotFoundError()
         return profile
 
-    async def set_timezone(self, driver_id: int, tz: str) -> AccountProfile:
+    async def set_timezone(self, driver_id: UUID, tz: str) -> AccountProfile:
         async with self._db.unit_of_work() as uow:
-            await uow.drivers.update_profile(driver_id, {"default_tz": tz})
+            await uow.drivers.update_profile(driver_id, {"timezone": tz})
             profile = await uow.drivers.profile(driver_id)
         if profile is None:
             raise NotFoundError()
@@ -56,22 +57,22 @@ class AccountService:
             user_id = await uow.users.insert(data.email, password_hash, Role.DRIVER)
             await uow.drivers.insert_profile(
                 user_id,
-                data.name,
+                data.full_name,
                 data.car_model,
                 data.car_plate,
-                data.default_tz,
-                _pct(data.default_commission_pct),
+                data.timezone,
+                _percent(data.commission_percent),
             )
             driver = await uow.drivers.with_totals(user_id)
         assert driver is not None  # noqa: S101 - created just above, in the same transaction
         log.info("driver_created", extra={"driver_id": driver.id})
         return driver
 
-    async def update_driver(self, driver_id: int, changes: Mapping[str, Any]) -> DriverOverview:
+    async def update_driver(self, driver_id: UUID, changes: Mapping[str, Any]) -> DriverOverview:
         """Apply profile changes; a new password also ends all of the driver's sessions."""
         changes = dict(changes)
-        if "default_commission_pct" in changes:
-            changes["default_commission_pct"] = _pct(changes["default_commission_pct"])
+        if "commission_percent" in changes:
+            changes["commission_percent"] = _percent(changes["commission_percent"])
         password = changes.pop("password", None)
         new_hash = await asyncio.to_thread(hash_password, password) if password is not None else None
         async with self._db.unit_of_work() as uow:
@@ -98,7 +99,7 @@ class AccountService:
         )
         return driver
 
-    async def delete_driver(self, driver_id: int) -> bool:
+    async def delete_driver(self, driver_id: UUID) -> bool:
         async with self._db.unit_of_work() as uow:
             deleted = await uow.users.delete_driver(driver_id)
         log.info("driver_deleted", extra={"driver_id": driver_id, "deleted": deleted})
@@ -108,7 +109,7 @@ class AccountService:
         async with self._db.unit_of_work() as uow:
             return await uow.drivers.list_with_totals(q)
 
-    async def get_driver(self, driver_id: int) -> DriverOverview | None:
+    async def get_driver(self, driver_id: UUID) -> DriverOverview | None:
         """A driver by id; None for unknown ids and for admin accounts."""
         async with self._db.unit_of_work() as uow:
             return await uow.drivers.with_totals(driver_id)

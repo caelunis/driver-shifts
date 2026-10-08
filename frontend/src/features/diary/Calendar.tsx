@@ -16,7 +16,7 @@ interface Props {
 /** Month grid starting on Monday; days with shifts are marked. */
 export function Calendar({ selected, today, days, onSelect }: Props) {
   const [month, setMonth] = useState(selected.slice(0, 7)); // "YYYY-MM"
-  const byDay = new Map(days.map((d) => [d.date, d]));
+  const byDay = new Map(days.map((d) => [d.work_date, d]));
 
   const [y, m] = month.split("-").map(Number) as [number, number];
   const first = new Date(Date.UTC(y, m - 1, 1));
@@ -60,7 +60,7 @@ export function Calendar({ selected, today, days, onSelect }: Props) {
               type="button"
               className={cls}
               aria-current={day === selected ? "date" : undefined}
-              title={info ? `${info.count} поездок · ${formatMoney(info.net)}` : undefined}
+              title={info ? `${info.trips_count} поездок · ${formatMoney(info.net_income)}` : undefined}
               onClick={() => onSelect(day)}
             >
               {Number(day.slice(8))}

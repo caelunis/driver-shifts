@@ -5,8 +5,10 @@ Routers declare what they need with the Annotated aliases below, e.g.
 """
 
 from typing import Annotated
+from uuid import UUID
 
-from fastapi import Cookie, Depends, Request, Response, status
+from fastapi import Cookie, Depends, Request, Response, Security, status
+from fastapi.security import APIKeyCookie
 
 from app.core.config import get_settings
 from app.core.constants import SESSION_COOKIE, SESSION_TTL
@@ -79,21 +81,31 @@ def current_principal(request: Request) -> Principal:
 CurrentPrincipal = Annotated[Principal, Depends(current_principal)]
 
 
-def require_driver(principal: CurrentPrincipal) -> int:
+def require_driver(principal: CurrentPrincipal) -> UUID:
     """Driver id. Admins have no diary of their own, so driver endpoints are 403 for them."""
     if principal.role != Role.DRIVER:
         raise ApiError(ErrorCode.DRIVERS_ONLY, "Only drivers can do this", status=status.HTTP_403_FORBIDDEN)
     return principal.id
 
 
-def require_admin(principal: CurrentPrincipal) -> int:
+def require_admin(principal: CurrentPrincipal) -> UUID:
     if principal.role != Role.ADMIN:
         raise ApiError(ErrorCode.ADMINS_ONLY, "Only the admin can do this", status=status.HTTP_403_FORBIDDEN)
     return principal.id
 
 
-DriverId = Annotated[int, Depends(require_driver)]
-AdminId = Annotated[int, Depends(require_admin)]
+DriverId = Annotated[UUID, Depends(require_driver)]
+AdminId = Annotated[UUID, Depends(require_admin)]
+
+# Documents the session cookie in the API schema (the lock icon in Swagger). Checking it
+# is AuthMiddleware's job: auto_error=False, so this dependency itself rejects nothing.
+session_cookie = APIKeyCookie(
+    name=SESSION_COOKIE,
+    scheme_name="session",
+    description="Set by POST /api/v1/auth/login; HttpOnly, so a browser sends it by itself",
+    auto_error=False,
+)
+Authenticated = Security(session_cookie)
 
 
 def require_json(request: Request) -> None:

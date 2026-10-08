@@ -36,7 +36,7 @@ describe("LoginPage", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("checks the form before sending anything", async () => {
-    renderLogin({ "/api/me": json(401, error("not_authenticated", "Log in first")) });
+    renderLogin({ "/api/v1/me": json(401, error("not_authenticated", "Log in first")) });
     await userEvent.click(await screen.findByRole("button", { name: "Войти" }));
     expect(await screen.findByText("Введите e-mail")).toBeTruthy();
     expect(screen.getByText("Введите пароль")).toBeTruthy();
@@ -44,8 +44,8 @@ describe("LoginPage", () => {
 
   it("shows a wrong password as one message", async () => {
     renderLogin({
-      "/api/me": json(401, error("not_authenticated", "Log in first")),
-      "/api/auth/login": json(401, error("invalid_credentials", "Invalid email or password")),
+      "/api/v1/me": json(401, error("not_authenticated", "Log in first")),
+      "/api/v1/auth/login": json(401, error("invalid_credentials", "Invalid email or password")),
     });
     await userEvent.type(await screen.findByLabelText("E-mail"), "demo@example.com");
     await userEvent.type(screen.getByLabelText("Пароль"), "wrong-pass");
@@ -56,8 +56,8 @@ describe("LoginPage", () => {
   it("goes to the diary after logging in", async () => {
     const profile = { id: 2, email: "demo@example.com", role: "driver", name: "Демо", default_tz: "Asia/Almaty" };
     renderLogin({
-      "/api/me": json(401, error("not_authenticated", "Log in first")),
-      "/api/auth/login": json(200, profile),
+      "/api/v1/me": json(401, error("not_authenticated", "Log in first")),
+      "/api/v1/auth/login": json(200, profile),
     });
     await userEvent.type(await screen.findByLabelText("E-mail"), "demo@example.com");
     await userEvent.type(screen.getByLabelText("Пароль"), "demo12345");

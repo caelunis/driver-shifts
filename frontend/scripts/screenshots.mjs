@@ -18,7 +18,7 @@ function almaty(minutesAgo) {
 
 async function api(email, password) {
   const ctx = await request.newContext({ baseURL: BASE });
-  const r = await ctx.post("/api/auth/login", { data: { email, password } });
+  const r = await ctx.post("/api/v1/auth/login", { data: { email, password } });
   if (r.status() !== 200) throw new Error(`login ${email}: ${r.status()} ${await r.text()}`);
   return ctx;
 }
@@ -47,28 +47,34 @@ const admin = await api("admin@example.com", "admin12345");
 
 // A driver in the middle of a shift: started 3 h ago, two trips so far
 const driver = await check(
-  await admin.post("/api/admin/drivers", {
+  await admin.post("/api/v1/admin/drivers", {
     data: {
       email: `asel-${Date.now()}@example.com`,
       password: PASSWORD,
-      name: "Асель Нурланова",
+      full_name: "Асель Нурланова",
       car_model: "Toyota Camry",
       car_plate: `${100 + Math.floor(Math.random() * 900)} KZS 02`,
-      default_tz: "Asia/Almaty",
-      default_commission_pct: 15,
+      timezone: "Asia/Almaty",
+      commission_percent: 15,
     },
   }),
 );
 const asDriver = await api(driver.email, PASSWORD);
-const shift = await check(await asDriver.post("/api/shifts", { data: { start: `${almaty(180)}:00+05:00` } }));
-for (const [from, to, amount, payment] of [
+const shift = await check(await asDriver.post("/api/v1/shifts", { data: { started_at: `${almaty(180)}:00+05:00` } }));
+for (const [from, to, fare, payment_method] of [
   [170, 140, 2800, "card"],
   [120, 95, 1900, "cash"],
   [60, 30, 3500, "card"],
 ]) {
   await check(
-    await asDriver.post("/api/trips", {
-      data: { shift_id: shift.id, start: `${almaty(from)}:00+05:00`, end: `${almaty(to)}:00+05:00`, amount, payment },
+    await asDriver.post("/api/v1/trips", {
+      data: {
+        shift_id: shift.id,
+        started_at: `${almaty(from)}:00+05:00`,
+        ended_at: `${almaty(to)}:00+05:00`,
+        fare,
+        payment_method,
+      },
     }),
   );
 }
@@ -140,6 +146,6 @@ try {
   await ctx.close();
 } finally {
   await browser.close();
-  await admin.delete(`/api/admin/drivers/${driver.id}`);
+  await admin.delete(`/api/v1/admin/drivers/${driver.id}`);
   await admin.dispose();
 }

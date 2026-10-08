@@ -10,18 +10,19 @@ from app.api.deps import (
     require_json,
     set_session_cookie,
 )
-from app.core.constants import SESSION_COOKIE
+from app.core.constants import API_V1, SESSION_COOKIE
 from app.core.enums import ErrorCode
 from app.core.errors import ApiError
 from app.core.logging import mask_email, user_id_var
 from app.domain.models import AccountProfile
 from app.schemas.accounts import LoginIn, Profile
+from app.schemas.errors import responses
 
-router = APIRouter(prefix="/api/auth", tags=["auth"])
+router = APIRouter(prefix=f"{API_V1}/auth", tags=["auth"])
 log = logging.getLogger(__name__)
 
 
-@router.post("/login", response_model=Profile)
+@router.post("/login", response_model=Profile, summary="Log in", responses=responses(401, 422, 429))
 async def login(
     data: LoginIn,
     response: Response,
@@ -29,6 +30,9 @@ async def login(
     accounts: AccountServiceDep,
     limiter: LoginLimiterDep,
 ) -> AccountProfile:
+    """Sets the HttpOnly `session` cookie (30 days) and returns the profile. A wrong password
+    and an unknown email get the same answer; after 5 failures an email waits 15 minutes
+    (**429 too_many_attempts** with Retry-After)."""
     key = data.email.lower()
     if wait := await limiter.retry_after(key):
         log.warning("login_rate_limited", extra={"email": mask_email(key), "retry_after": wait})
@@ -54,8 +58,15 @@ async def login(
     return await accounts.profile(user_id)
 
 
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_json)])
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_json)],
+    summary="Log out",
+    responses=responses(415, 422),
+)
 async def logout(response: Response, auth: AuthServiceDep, session: SessionCookie = None) -> None:
+    """Ends the session. Needs `Content-Type: application/json` (a CSRF guard), body `{}`."""
     if session:
         await auth.end_session(session)
     log.info("logout")

@@ -8,8 +8,9 @@ touching the rules, and the other way round.
 import datetime as dt
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import datetime
 from decimal import Decimal
+from uuid import UUID
 
 from app.core.enums import PaymentMethod, Role, ShiftStatus
 
@@ -20,13 +21,13 @@ from app.core.enums import PaymentMethod, Role, ShiftStatus
 class Principal:
     """Who is making the request: the account behind a live session."""
 
-    id: int
+    id: UUID
     role: Role
 
 
 @dataclass(frozen=True, slots=True)
 class Credentials:
-    id: int
+    id: UUID
     role: Role
     password_hash: str
 
@@ -35,44 +36,33 @@ class Credentials:
 class AccountProfile:
     """An account with its driver profile; the profile fields are None for admins."""
 
-    id: int
+    id: UUID
     email: str
     role: Role
-    name: str | None = None
+    full_name: str | None = None
     car_model: str | None = None
     car_plate: str | None = None
-    default_tz: str | None = None
-    default_commission_pct: Decimal | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class NewDriver:
-    email: str
-    password_hash: str
-    name: str
-    car_model: str
-    car_plate: str | None
-    default_tz: str
-    default_commission_pct: Decimal | None
+    timezone: str | None = None
+    commission_percent: Decimal | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class DriverOverview:
     """A driver as the admin's list shows them: profile plus totals."""
 
-    id: int
+    id: UUID
     email: str
     role: Role
-    name: str
+    full_name: str
     car_model: str
     car_plate: str | None
-    default_tz: str
-    default_commission_pct: Decimal | None
+    timezone: str
+    commission_percent: Decimal | None
     created_at: datetime
     trips_count: int
     revenue: int
-    net: int
-    last_trip_day: date | None
+    net_income: int
+    last_work_date: dt.date | None
 
 
 # --- shifts and trips ---
@@ -80,48 +70,48 @@ class DriverOverview:
 
 @dataclass(slots=True)
 class Shift:
-    id: int
-    driver_id: int
-    start: datetime
-    end: datetime | None  # None while the shift is open
-    local_day: date  # local day of the start, in the start's own offset
+    id: UUID
+    driver_id: UUID
+    started_at: datetime
+    ended_at: datetime | None  # None while the shift is open
+    work_date: dt.date  # local date of the start, in the start's own offset
     note: str
 
     @property
     def is_open(self) -> bool:
-        return self.end is None
+        return self.ended_at is None
 
     @property
     def status(self) -> ShiftStatus:
-        return ShiftStatus.OPEN if self.end is None else ShiftStatus.CLOSED
+        return ShiftStatus.OPEN if self.ended_at is None else ShiftStatus.CLOSED
 
 
 @dataclass(slots=True)
 class Trip:
-    id: str
-    driver_id: int
-    shift_id: int
-    start: datetime
-    end: datetime
-    amount: int
-    payment: PaymentMethod
-    commission: int
+    id: UUID
+    driver_id: UUID
+    shift_id: UUID
+    started_at: datetime
+    ended_at: datetime
+    fare: int
+    payment_method: PaymentMethod
+    commission_amount: int
     # The percent the commission was computed with; None if it was entered by hand
-    commission_pct: Decimal | None = None
+    commission_percent: Decimal | None = None
 
     @property
-    def net(self) -> int:
-        return self.amount - self.commission
+    def net_income(self) -> int:
+        return self.fare - self.commission_amount
 
     def same_content(self, other: "Trip") -> bool:
         """Equal apart from the id. Aware datetimes compare by instant, not notation."""
         return (
             self.shift_id == other.shift_id
-            and self.start == other.start
-            and self.end == other.end
-            and self.amount == other.amount
-            and self.payment == other.payment
-            and self.commission == other.commission
+            and self.started_at == other.started_at
+            and self.ended_at == other.ended_at
+            and self.fare == other.fare
+            and self.payment_method == other.payment_method
+            and self.commission_amount == other.commission_amount
         )
 
 
@@ -130,86 +120,79 @@ class Trip:
 
 @dataclass(slots=True)
 class PaymentTotals:
-    count: int = 0
+    trips_count: int = 0
     amount: int = 0
 
 
 @dataclass(slots=True)
 class Totals:
-    count: int = 0
+    trips_count: int = 0
     revenue: int = 0
-    commission: int = 0
+    commission_total: int = 0
     cash: PaymentTotals = field(default_factory=PaymentTotals)
     card: PaymentTotals = field(default_factory=PaymentTotals)
 
     @property
-    def net(self) -> int:
+    def net_income(self) -> int:
         """Take-home: revenue minus commission."""
-        return self.revenue - self.commission
+        return self.revenue - self.commission_total
 
     @classmethod
     def of(cls, trips: Iterable[Trip]) -> "Totals":
         totals = cls()
         for t in trips:
-            totals.count += 1
-            totals.revenue += t.amount
-            totals.commission += t.commission
-            bucket = totals.cash if t.payment == PaymentMethod.CASH else totals.card
-            bucket.count += 1
-            bucket.amount += t.amount
+            totals.trips_count += 1
+            totals.revenue += t.fare
+            totals.commission_total += t.commission_amount
+            bucket = totals.cash if t.payment_method == PaymentMethod.CASH else totals.card
+            bucket.trips_count += 1
+            bucket.amount += t.fare
         return totals
+
+    def _fields(self) -> dict[str, object]:
+        return {
+            "trips_count": self.trips_count,
+            "revenue": self.revenue,
+            "commission_total": self.commission_total,
+            "cash": self.cash,
+            "card": self.card,
+        }
 
 
 @dataclass(slots=True)
 class ShiftSummary(Totals):
-    duration_min: int = 0  # up to now for an open shift
-    net_per_hour: int | None = None  # None for a shift shorter than a minute
+    duration_minutes: int = 0  # up to now for an open shift
+    net_income_per_hour: int | None = None  # None for a shift shorter than a minute
 
     @classmethod
-    def for_shift(cls, trips: Iterable[Trip], start: datetime, end: datetime) -> "ShiftSummary":
-        """`end` is the shift's end, or now for an open shift."""
+    def for_shift(cls, trips: Iterable[Trip], started_at: datetime, ended_at: datetime) -> "ShiftSummary":
+        """`ended_at` is the shift's end, or now for an open shift."""
         t = Totals.of(trips)
-        minutes = int((end - start).total_seconds() // 60)
-        per_hour = round(t.net * 60 / minutes) if minutes > 0 else None
-        return cls(
-            count=t.count,
-            revenue=t.revenue,
-            commission=t.commission,
-            cash=t.cash,
-            card=t.card,
-            duration_min=minutes,
-            net_per_hour=per_hour,
-        )
+        minutes = int((ended_at - started_at).total_seconds() // 60)
+        per_hour = round(t.net_income * 60 / minutes) if minutes > 0 else None
+        return cls(**t._fields(), duration_minutes=minutes, net_income_per_hour=per_hour)  # type: ignore[arg-type]
 
 
 @dataclass(slots=True)
 class DaySummary(Totals):
-    """Totals of all trips in the shifts that started on this local day."""
+    """Totals of all trips in the shifts that started on this work date."""
 
-    date: dt.date = dt.date.min
-    shifts: int = 0
+    work_date: dt.date = dt.date.min
+    shifts_count: int = 0
 
     @classmethod
-    def for_day(cls, day: dt.date, shifts: int, trips: Iterable[Trip]) -> "DaySummary":
+    def for_day(cls, work_date: dt.date, shifts_count: int, trips: Iterable[Trip]) -> "DaySummary":
         t = Totals.of(trips)
-        return cls(
-            count=t.count,
-            revenue=t.revenue,
-            commission=t.commission,
-            cash=t.cash,
-            card=t.card,
-            date=day,
-            shifts=shifts,
-        )
+        return cls(**t._fields(), work_date=work_date, shifts_count=shifts_count)  # type: ignore[arg-type]
 
 
 @dataclass(frozen=True, slots=True)
 class DayInfo:
-    """A day with at least one shift, for the calendar."""
+    """A work date with at least one shift, for the calendar."""
 
-    date: dt.date
-    count: int
-    net: int
+    work_date: dt.date
+    trips_count: int
+    net_income: int
 
 
 @dataclass(slots=True)
@@ -222,24 +205,24 @@ class ShiftReport:
 
     # Flattened for the response schemas, which read attributes
     @property
-    def id(self) -> int:
+    def id(self) -> UUID:
         return self.shift.id
 
     @property
-    def start(self) -> datetime:
-        return self.shift.start
+    def started_at(self) -> datetime:
+        return self.shift.started_at
 
     @property
-    def end(self) -> datetime | None:
-        return self.shift.end
+    def ended_at(self) -> datetime | None:
+        return self.shift.ended_at
 
     @property
     def status(self) -> ShiftStatus:
         return self.shift.status
 
     @property
-    def local_day(self) -> date:
-        return self.shift.local_day
+    def work_date(self) -> dt.date:
+        return self.shift.work_date
 
     @property
     def note(self) -> str:

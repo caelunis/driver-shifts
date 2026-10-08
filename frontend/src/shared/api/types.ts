@@ -16,7 +16,7 @@ export type DayInfo = Schemas["DayInfo"];
 export type DriverInfo = Schemas["DriverInfo"];
 export type DriverCreate = Schemas["DriverCreate"];
 export type DriverUpdate = Schemas["DriverUpdate"];
-export type Payment = Trip["payment"];
+export type Payment = Trip["payment_method"];
 
 // The error body is the same for every endpoint (backend app/core/errors.py); FastAPI's
 // generated schema still describes its default 422 shape, so this one is written by hand.

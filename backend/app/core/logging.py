@@ -15,12 +15,13 @@ import traceback
 from contextvars import ContextVar
 from datetime import UTC, datetime
 from typing import Any, Literal
+from uuid import UUID
 
 import orjson
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
-user_id_var: ContextVar[int | None] = ContextVar("user_id", default=None)
+user_id_var: ContextVar[UUID | None] = ContextVar("user_id", default=None)
 
 # Attributes every LogRecord has; anything else on a record came in through `extra`
 _STANDARD = set(logging.makeLogRecord({}).__dict__) | {"message", "asctime", "request_id", "user_id"}

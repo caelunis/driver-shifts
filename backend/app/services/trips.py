@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from datetime import date
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 from pydantic import ValidationError
 
@@ -22,30 +23,35 @@ log = logging.getLogger(__name__)
 def _check_fits_shift(trip: TripIn, shift: Shift | None, by_admin: bool) -> Shift:
     if shift is None:
         raise DomainValidationError("shift_id", ErrorCode.SHIFT_NOT_FOUND, "No such shift")
-    if not by_admin and shift.end is not None:
+    if not by_admin and shift.ended_at is not None:
         # A shift older than the window is locked for the driver
-        ShiftPolicy.within_window("shift_id", shift.end)
-    if trip.start < shift.start:
+        ShiftPolicy.within_window("shift_id", shift.ended_at)
+    if trip.started_at < shift.started_at:
         raise DomainValidationError(
-            "start",
+            "started_at",
             ErrorCode.OUTSIDE_SHIFT,
             "The trip starts before the shift",
-            shift_start=shift.start.isoformat(),
+            shift_started_at=shift.started_at.isoformat(),
         )
-    if shift.end is not None and trip.end > shift.end:
+    if shift.ended_at is not None and trip.ended_at > shift.ended_at:
         raise DomainValidationError(
-            "end", ErrorCode.OUTSIDE_SHIFT, "The trip ends after the shift", shift_end=shift.end.isoformat()
+            "ended_at",
+            ErrorCode.OUTSIDE_SHIFT,
+            "The trip ends after the shift",
+            shift_ended_at=shift.ended_at.isoformat(),
         )
-    ShiftPolicy.not_in_future("end", trip.end)
+    ShiftPolicy.not_in_future("ended_at", trip.ended_at)
     return shift
 
 
 async def _check_no_overlap(uow: UnitOfWork, trip: Trip) -> None:
     # Also enforced by the trips_no_overlap constraint; checked first to name the other trip.
     # The id itself is excluded, so resending the same trip stays idempotent.
-    other = await uow.trips.overlapping(trip.driver_id, trip.start, trip.end, trip.id)
+    other = await uow.trips.overlapping(trip.driver_id, trip.started_at, trip.ended_at, trip.id)
     if other is not None:
-        raise ConflictError(ErrorCode.TRIP_OVERLAP, "Overlaps another trip of this driver", trip_id=other)
+        raise ConflictError(
+            ErrorCode.TRIP_OVERLAP, "Overlaps another trip of this driver", trip_id=str(other)
+        )
 
 
 def _validated(data: Mapping[str, Any]) -> TripIn:
@@ -57,17 +63,19 @@ def _validated(data: Mapping[str, Any]) -> TripIn:
         raise DomainValidationError(str(err["loc"][0]), err["type"], err["msg"]) from e
 
 
-def _build(driver_id: int, trip_in: TripIn, trip_id: str, commission: int, pct: Decimal | None) -> Trip:
+def _build(
+    driver_id: UUID, trip_in: TripIn, trip_id: UUID, commission_amount: int, percent: Decimal | None
+) -> Trip:
     return Trip(
         id=trip_id,
         driver_id=driver_id,
         shift_id=trip_in.shift_id,
-        start=trip_in.start,
-        end=trip_in.end,
-        amount=trip_in.amount,
-        payment=trip_in.payment,
-        commission=commission,
-        commission_pct=pct,
+        started_at=trip_in.started_at,
+        ended_at=trip_in.ended_at,
+        fare=trip_in.fare,
+        payment_method=trip_in.payment_method,
+        commission_amount=commission_amount,
+        commission_percent=percent,
     )
 
 
@@ -77,23 +85,23 @@ class TripService:
 
     # --- reading a diary ---
 
-    async def days(self, driver_id: int) -> list[DayInfo]:
+    async def days(self, driver_id: UUID) -> list[DayInfo]:
         async with self._db.unit_of_work() as uow:
             return await uow.trips.days(driver_id)
 
-    async def for_day(self, driver_id: int, day: date) -> list[Trip]:
+    async def for_day(self, driver_id: UUID, work_date: date) -> list[Trip]:
         async with self._db.unit_of_work() as uow:
-            return await uow.trips.for_day(driver_id, day)
+            return await uow.trips.for_day(driver_id, work_date)
 
-    async def day_summary(self, driver_id: int, day: date) -> DaySummary:
+    async def day_summary(self, driver_id: UUID, work_date: date) -> DaySummary:
         async with self._db.unit_of_work() as uow:
-            trips = await uow.trips.for_day(driver_id, day)
-            shifts = len(await uow.shifts.for_day(driver_id, day))
-        return DaySummary.for_day(day, shifts, trips)
+            trips = await uow.trips.for_day(driver_id, work_date)
+            shifts_count = len(await uow.shifts.for_day(driver_id, work_date))
+        return DaySummary.for_day(work_date, shifts_count, trips)
 
     # --- changes ---
 
-    async def add(self, driver_id: int, trip_in: TripIn, *, by_admin: bool = False) -> tuple[Trip, bool]:
+    async def add(self, driver_id: UUID, trip_in: TripIn, *, by_admin: bool = False) -> tuple[Trip, bool]:
         """Idempotent insert into one of the driver's shifts. Returns (trip, created).
 
         The same trip sent again returns the stored one (created=False); a different
@@ -104,10 +112,10 @@ class TripService:
             # outside a shift that was closed meanwhile
             shift = await uow.shifts.get(driver_id, trip_in.shift_id, for_update=True)
             _check_fits_shift(trip_in, shift, by_admin)
-            pct = await uow.drivers.commission_pct(driver_id)
-            commission = Commission.resolve(trip_in, pct)
-            # Remember the percent: editing the amount later recomputes with this one
-            trip = _build(driver_id, trip_in, trip_in.id or trip_in.fingerprint(), commission, pct)
+            percent = await uow.drivers.commission_percent(driver_id)
+            commission_amount = Commission.resolve(trip_in, percent)
+            # Remember the percent: editing the fare later recomputes with this one
+            trip = _build(driver_id, trip_in, trip_in.id or trip_in.content_id(), commission_amount, percent)
             await _check_no_overlap(uow, trip)
             created = await uow.trips.insert_if_absent(trip)
             existing = None if created else await uow.trips.get(driver_id, trip.id)
@@ -123,13 +131,13 @@ class TripService:
         raise TripConflictError(existing)
 
     async def update(
-        self, driver_id: int, trip_id: str, changes: Mapping[str, Any], *, by_admin: bool = False
+        self, driver_id: UUID, trip_id: UUID, changes: Mapping[str, Any], *, by_admin: bool = False
     ) -> Trip:
         """Apply `changes` (only the fields the client sent) under the same rules as adding.
 
-        The commission follows the percent stored with the trip: a new amount recomputes it,
+        The commission follows the percent stored with the trip: a new fare recomputes it,
         and a commission the client sends must match. A trip entered without a percent keeps
-        a hand-entered commission, which must stay below the amount.
+        a hand-entered commission, which must stay below the fare.
         """
         async with self._db.unit_of_work() as uow:
             current = await uow.trips.get(driver_id, trip_id)
@@ -137,7 +145,7 @@ class TripService:
                 raise NotFoundError()
             # Shifts are locked before the trip, in id order, the same order adding a trip
             # and changing a shift use, so concurrent requests wait instead of deadlocking
-            target_id: int = changes.get("shift_id", current.shift_id)
+            target_id: UUID = changes.get("shift_id", current.shift_id)
             shifts = {
                 i: await uow.shifts.get(driver_id, i, for_update=True)
                 for i in sorted({current.shift_id, target_id})
@@ -154,19 +162,19 @@ class TripService:
             merged: dict[str, Any] = {
                 "id": current.id,
                 "shift_id": current.shift_id,
-                "start": current.start,
-                "end": current.end,
-                "amount": current.amount,
-                "payment": current.payment,
-                "commission": current.commission,
+                "started_at": current.started_at,
+                "ended_at": current.ended_at,
+                "fare": current.fare,
+                "payment_method": current.payment_method,
+                "commission_amount": current.commission_amount,
                 **changes,
             }
-            if "commission" not in changes and current.commission_pct is not None:
-                merged["commission"] = None  # recomputed below
+            if "commission_amount" not in changes and current.commission_percent is not None:
+                merged["commission_amount"] = None  # recomputed below
             trip_in = _validated(merged)
             _check_fits_shift(trip_in, shifts[target_id], by_admin)
-            commission = Commission.resolve(trip_in, current.commission_pct)
-            trip = _build(driver_id, trip_in, current.id, commission, current.commission_pct)
+            commission_amount = Commission.resolve(trip_in, current.commission_percent)
+            trip = _build(driver_id, trip_in, current.id, commission_amount, current.commission_percent)
             await _check_no_overlap(uow, trip)
             await uow.trips.update(trip)
         log.info(
@@ -180,7 +188,7 @@ class TripService:
         )
         return trip
 
-    async def delete(self, driver_id: int, trip_id: str, *, by_admin: bool = False) -> None:
+    async def delete(self, driver_id: UUID, trip_id: UUID, *, by_admin: bool = False) -> None:
         async with self._db.unit_of_work() as uow:
             current = await uow.trips.get(driver_id, trip_id)
             if current is None:

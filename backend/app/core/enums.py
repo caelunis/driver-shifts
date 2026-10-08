@@ -75,4 +75,4 @@ class ErrorCode(StrEnum):
     BEFORE_LAST_TRIP = "before_last_trip"
     AFTER_FIRST_TRIP = "after_first_trip"
     COMMISSION_FIXED = "commission_fixed"
-    COMMISSION_EXCEEDS_AMOUNT = "commission_exceeds_amount"
+    COMMISSION_EXCEEDS_FARE = "commission_exceeds_fare"
