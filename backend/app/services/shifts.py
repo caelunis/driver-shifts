@@ -1,5 +1,6 @@
 """Shifts: a driver's working periods. Every trip belongs to a shift."""
 
+import logging
 from collections.abc import Mapping
 from datetime import date, datetime
 from typing import Any
@@ -13,6 +14,8 @@ from app.db.database import Database, UnitOfWork
 from app.domain.models import Shift, ShiftReport, ShiftSummary, Trip
 from app.schemas.common import zone
 from app.services.policies import ShiftPolicy
+
+log = logging.getLogger(__name__)
 
 
 def _report(shift: Shift, trips: list[Trip]) -> ShiftReport:
@@ -76,7 +79,16 @@ class ShiftService:
             except (ExclusionViolation, UniqueViolation) as e:
                 # An overlap with an existing shift; a concurrent start is already serialized above
                 raise ConflictError(ErrorCode.SHIFT_OVERLAP, "Overlaps another shift of this driver") from e
-            return _report(shift, [])
+        log.info(
+            "shift_started",
+            extra={
+                "driver_id": driver_id,
+                "shift_id": shift.id,
+                "past": end_at is not None,
+                "by_admin": by_admin,
+            },
+        )
+        return _report(shift, [])
 
     async def close(self, driver_id: int, shift_id: int, end_at: datetime | None = None) -> ShiftReport:
         """Close an open shift. Allowed however long ago it started: the end time is checked
@@ -92,7 +104,9 @@ class ShiftService:
             ShiftPolicy.valid_end(shift.start, end_at)
             await _check_holds_trips(uow, shift_id, shift.start, end_at)
             closed = await uow.shifts.update(shift_id, shift.start, end_at, shift.note)
-            return _report(closed, await uow.trips.for_shifts([shift_id]))
+            report = _report(closed, await uow.trips.for_shifts([shift_id]))
+        log.info("shift_closed", extra={"driver_id": driver_id, "shift_id": shift_id})
+        return report
 
     async def update(
         self, driver_id: int, shift_id: int, changes: Mapping[str, Any], *, by_admin: bool = False
@@ -133,7 +147,18 @@ class ShiftService:
             except ExclusionViolation as e:
                 # An open shift extends to infinity, so only the latest shift can be reopened
                 raise ConflictError(ErrorCode.SHIFT_OVERLAP, "Overlaps another shift of this driver") from e
-            return _report(updated, await uow.trips.for_shifts([shift_id]))
+            report = _report(updated, await uow.trips.for_shifts([shift_id]))
+        log.info(
+            "shift_updated",
+            extra={
+                "driver_id": driver_id,
+                "shift_id": shift_id,
+                "fields": sorted(changes),
+                "reopened": end_at is None and shift.end is not None,
+                "by_admin": by_admin,
+            },
+        )
+        return report
 
     async def delete(self, driver_id: int, shift_id: int, *, by_admin: bool = False) -> None:
         """Delete the shift together with its trips."""
@@ -144,6 +169,7 @@ class ShiftService:
             if not by_admin:
                 ShiftPolicy.editable_by_driver(shift)
             await uow.shifts.delete(shift_id)
+        log.info("shift_deleted", extra={"driver_id": driver_id, "shift_id": shift_id, "by_admin": by_admin})
 
     async def get(self, driver_id: int, shift_id: int) -> ShiftReport:
         async with self._db.unit_of_work() as uow:

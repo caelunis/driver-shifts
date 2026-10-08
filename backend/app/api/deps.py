@@ -12,6 +12,7 @@ from app.core.config import get_settings
 from app.core.constants import SESSION_COOKIE, SESSION_TTL
 from app.core.enums import ErrorCode, Role
 from app.core.errors import ApiError
+from app.core.logging import user_id_var
 from app.core.security import LoginLimiter
 from app.db.database import Database
 from app.domain.models import Principal
@@ -69,6 +70,7 @@ async def current_principal(auth: AuthServiceDep, session: SessionCookie = None)
     principal = await auth.principal(session) if session else None
     if principal is None:
         raise ApiError(ErrorCode.NOT_AUTHENTICATED, "Log in first", status=status.HTTP_401_UNAUTHORIZED)
+    user_id_var.set(principal.id)  # every log record of this request names the account
     return principal
 
 

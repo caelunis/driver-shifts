@@ -10,6 +10,7 @@ from pydantic_core import PydanticCustomError
 
 from app.core.enums import Role
 from app.core.errors import DomainValidationError, NotFoundError
+from app.core.logging import mask_email
 from app.core.security import hash_password
 from app.db.database import Database
 from app.domain.models import AccountProfile, DriverOverview
@@ -43,6 +44,7 @@ class AccountService:
             profile = await uow.drivers.profile(driver_id)
         if profile is None:
             raise NotFoundError()
+        log.info("timezone_changed", extra={"driver_id": driver_id, "tz": tz})
         return profile
 
     # --- drivers, managed by the admin ---
@@ -62,6 +64,7 @@ class AccountService:
             )
             driver = await uow.drivers.with_totals(user_id)
         assert driver is not None  # noqa: S101 - created just above, in the same transaction
+        log.info("driver_created", extra={"driver_id": driver.id})
         return driver
 
     async def update_driver(self, driver_id: int, changes: Mapping[str, Any]) -> DriverOverview:
@@ -84,11 +87,22 @@ class AccountService:
             driver = await uow.drivers.with_totals(driver_id)
         if driver is None:
             raise NotFoundError()
+        # Field names only: values such as the password never reach the log
+        log.info(
+            "driver_updated",
+            extra={
+                "driver_id": driver_id,
+                "fields": sorted(changes),
+                "password_changed": new_hash is not None,
+            },
+        )
         return driver
 
     async def delete_driver(self, driver_id: int) -> bool:
         async with self._db.unit_of_work() as uow:
-            return await uow.users.delete_driver(driver_id)
+            deleted = await uow.users.delete_driver(driver_id)
+        log.info("driver_deleted", extra={"driver_id": driver_id, "deleted": deleted})
+        return deleted
 
     async def list_drivers(self, q: str | None = None) -> list[DriverOverview]:
         async with self._db.unit_of_work() as uow:
@@ -109,9 +123,10 @@ class AccountService:
             if existing:
                 if existing.role != Role.ADMIN:
                     # Never silently promote an existing driver account
-                    log.warning("%s belongs to a driver account; admin not created", email)
+                    log.warning("admin_not_created_driver_email", extra={"email": mask_email(email)})
                 return False
-            await uow.users.insert(email, password_hash, Role.ADMIN)
+            admin_id = await uow.users.insert(email, password_hash, Role.ADMIN)
+        log.info("admin_created", extra={"admin_id": admin_id})
         return True
 
     async def any_accounts(self) -> bool:

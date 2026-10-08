@@ -36,6 +36,7 @@ class ErrorCode(StrEnum):
     NOT_FOUND = "not_found"
     DRIVER_NOT_FOUND = "driver_not_found"
     DB_UNAVAILABLE = "db_unavailable"
+    INTERNAL_ERROR = "internal_error"
 
     # conflicts with the current state
     SHIFT_ALREADY_OPEN = "shift_already_open"

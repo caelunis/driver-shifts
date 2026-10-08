@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from app.core.config import get_settings
+from app.core.logging import configure_logging
 from app.db.database import Database
 from app.schemas.accounts import DriverCreate
 from app.schemas.trips import TripIn
@@ -71,4 +72,5 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
+    configure_logging()
     asyncio.run(main())

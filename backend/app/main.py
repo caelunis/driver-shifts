@@ -4,9 +4,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.api import errors
+from app.api.middleware import RequestContextMiddleware
 from app.api.routers import auth, health, me, shifts, trips
 from app.api.routers.admin import drivers as admin_drivers
 from app.core.config import get_settings
+from app.core.logging import configure_logging
 from app.core.security import LoginLimiter
 from app.db.database import Database
 
@@ -41,6 +43,7 @@ def create_app(db: Database | None = None) -> FastAPI:
     app.state.login_limiter = LoginLimiter()
 
     errors.install(app)
+    app.add_middleware(RequestContextMiddleware)
 
     for router in (health.router, auth.router, me.router, shifts.router, trips.router, admin_drivers.router):
         app.include_router(router)
@@ -48,4 +51,5 @@ def create_app(db: Database | None = None) -> FastAPI:
     return app
 
 
+configure_logging()
 app = create_app()

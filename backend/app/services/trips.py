@@ -1,5 +1,6 @@
 """Trips, and the per-day views of a diary."""
 
+import logging
 from collections.abc import Mapping
 from datetime import date
 from decimal import Decimal
@@ -14,6 +15,8 @@ from app.domain.models import DayInfo, DaySummary, Shift, Trip
 from app.schemas.trips import TripIn
 from app.services.commission import Commission
 from app.services.policies import ShiftPolicy
+
+log = logging.getLogger(__name__)
 
 
 def _check_fits_shift(trip: TripIn, shift: Shift | None, by_admin: bool) -> Shift:
@@ -106,12 +109,17 @@ class TripService:
             # Remember the percent: editing the amount later recomputes with this one
             trip = _build(driver_id, trip_in, trip_in.id or trip_in.fingerprint(), commission, pct)
             await _check_no_overlap(uow, trip)
-            if await uow.trips.insert_if_absent(trip):
-                return trip, True
-            existing = await uow.trips.get(driver_id, trip.id)
+            created = await uow.trips.insert_if_absent(trip)
+            existing = None if created else await uow.trips.get(driver_id, trip.id)
+        ids = {"driver_id": driver_id, "trip_id": trip.id, "shift_id": trip.shift_id, "by_admin": by_admin}
+        if created:
+            log.info("trip_added", extra=ids)
+            return trip, True
         assert existing is not None  # noqa: S101 - the insert conflicted on this very id
         if existing.same_content(trip):
+            log.info("trip_duplicate_ignored", extra=ids)  # a retried request: nothing stored twice
             return existing, False
+        log.warning("trip_conflict", extra=ids)
         raise TripConflictError(existing)
 
     async def update(
@@ -161,7 +169,16 @@ class TripService:
             trip = _build(driver_id, trip_in, current.id, commission, current.commission_pct)
             await _check_no_overlap(uow, trip)
             await uow.trips.update(trip)
-            return trip
+        log.info(
+            "trip_updated",
+            extra={
+                "driver_id": driver_id,
+                "trip_id": trip_id,
+                "fields": sorted(changes),
+                "by_admin": by_admin,
+            },
+        )
+        return trip
 
     async def delete(self, driver_id: int, trip_id: str, *, by_admin: bool = False) -> None:
         async with self._db.unit_of_work() as uow:
@@ -174,3 +191,4 @@ class TripService:
             if not by_admin:
                 ShiftPolicy.editable_by_driver(shift)
             await uow.trips.delete(driver_id, trip_id)
+        log.info("trip_deleted", extra={"driver_id": driver_id, "trip_id": trip_id, "by_admin": by_admin})

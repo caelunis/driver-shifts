@@ -14,6 +14,7 @@ import sys
 
 from app.core.config import get_settings
 from app.core.constants import PASSWORD_MIN_LENGTH
+from app.core.logging import configure_logging
 from app.db.database import Database
 from app.services.accounts import AccountService
 
@@ -50,4 +51,5 @@ async def _create(email: str, password: str) -> bool:
 
 
 if __name__ == "__main__":
+    configure_logging()
     sys.exit(main())

@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+import logging
 import secrets
 from datetime import UTC, datetime
 
@@ -9,6 +10,8 @@ from app.core.constants import SESSION_TOKEN_BYTES, SESSION_TTL
 from app.core.security import hash_password, verify_password
 from app.db.database import Database
 from app.domain.models import Principal
+
+log = logging.getLogger(__name__)
 
 # Verified against when the email is unknown, so a login attempt takes the same
 # time whether or not the account exists (no account enumeration via timing).
@@ -49,6 +52,7 @@ class AuthService:
             principal, alive = found
             if not alive:
                 await uow.sessions.delete(_token_hash(token))
+                log.info("session_expired", extra={"account_id": principal.id})
                 return None
             return principal
 

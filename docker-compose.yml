@@ -50,6 +50,7 @@ services:
     environment:
       <<: *app-database-env
       SEED_DEMO: ${SEED_DEMO:-1}
+      LOG_FORMAT: json
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     command: ["python", "-m", "scripts.bootstrap"]
@@ -62,6 +63,8 @@ services:
     environment:
       <<: *app-database-env
       COOKIE_SECURE: ${COOKIE_SECURE:-0}
+      LOG_FORMAT: json
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     # Not published: reached through `web`, which serves the frontend on the same origin
     expose:
       - "8000"

@@ -7,6 +7,7 @@
 import asyncio
 
 from app.core.config import get_settings
+from app.core.logging import configure_logging
 from app.db.database import Database
 from app.services.accounts import AccountService
 from scripts.seed_demo import seed
@@ -26,4 +27,5 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
+    configure_logging()
     asyncio.run(main())
