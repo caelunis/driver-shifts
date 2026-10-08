@@ -103,6 +103,8 @@ export function errorMessage(err: unknown): string {
       return `Слишком много попыток. Попробуйте через ${Math.ceil(num(err.ctx.retry_after) / 60)} мин.`;
     case "too_many_requests":
       return `Слишком много запросов. Подождите ${num(err.ctx.retry_after)} с.`;
+    case "db_unavailable":
+      return `База данных временно недоступна. Попробуйте через ${num(err.ctx.retry_after)} с.`;
     case "internal_error":
       return `Ошибка сервера. Код для поддержки: ${String(err.ctx.request_id ?? "—")}`;
     case "not_authenticated":

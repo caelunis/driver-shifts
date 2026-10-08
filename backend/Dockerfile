@@ -32,7 +32,8 @@ EXPOSE 8000
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=2)" || exit 1
 
-# granian: ASGI server written in Rust. One worker: the login rate limiter lives in
-# process memory (until it moves to Redis). The schema is not touched here: the
-# `migrate` service runs dbmate before the app starts.
-CMD ["granian", "--interface", "asgi", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "app.main:app"]
+# granian: ASGI server written in Rust. Several workers are safe: the cache and the
+# rate-limit counters live in Redis (GRANIAN_WORKERS overrides the count). The schema
+# is not touched here: the `migrate` service runs dbmate before the app starts.
+ENV GRANIAN_WORKERS=2
+CMD ["granian", "--interface", "asgi", "--host", "0.0.0.0", "--port", "8000", "app.main:app"]

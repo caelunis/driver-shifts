@@ -34,6 +34,9 @@ describe("errorMessage", () => {
   it("explains network and server failures", () => {
     expect(errorMessage(new ApiError(0))).toMatch(/Сервер недоступен/);
     expect(errorMessage(new ApiError(502))).toBe("Ошибка сервера (502)");
+    expect(errorMessage(new ApiError(503, { code: "db_unavailable", ctx: { retry_after: 30 } }))).toBe(
+      "База данных временно недоступна. Попробуйте через 30 с.",
+    );
     expect(errorMessage(new Error("boom"))).toBe("Что-то пошло не так");
   });
 });

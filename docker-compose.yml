@@ -81,6 +81,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       LOG_FORMAT: json
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      GRANIAN_WORKERS: ${GRANIAN_WORKERS:-2}
     # Not published: reached through `web`, which serves the frontend on the same origin
     expose:
       - "8000"
