@@ -4,7 +4,7 @@ import sys
 import psycopg
 import pytest
 
-from app.services import accounts
+from app.services.accounts import AccountService
 from scripts.seed_demo import DEMO_ADMIN, DEMO_DRIVERS, seed
 from tests.conftest import BACKEND, db_env
 from tests.factories import create_driver
@@ -35,7 +35,7 @@ def test_new_accounts_default_to_driver_role(db):
 
 def test_admin_has_no_driver_profile(db):
     admin = create_driver(db, "boss@example.com", "horse-battery-9", role="admin")
-    assert accounts.get_profile(db, admin).name is None
+    assert db.service(AccountService).profile(admin).name is None
     with db.connection() as conn:
         assert conn.execute("SELECT count(*) AS n FROM drivers").fetchone()["n"] == 0
 
@@ -46,14 +46,14 @@ def test_role_is_restricted(db):
 
 
 def test_ensure_admin_creates_once(db):
-    assert accounts.ensure_admin(db, "Boss@Example.com", "horse-battery-9") is True
-    assert accounts.ensure_admin(db, "boss@example.com", "another-pass") is False
+    assert db.service(AccountService).ensure_admin("Boss@Example.com", "horse-battery-9") is True
+    assert db.service(AccountService).ensure_admin("boss@example.com", "another-pass") is False
     assert roles(db) == {"boss@example.com": "admin"}
 
 
 def test_ensure_admin_never_promotes_existing_driver(db):
     create_driver(db, "d@example.com", "horse-battery-9")
-    assert accounts.ensure_admin(db, "d@example.com", "horse-battery-9") is False
+    assert db.service(AccountService).ensure_admin("d@example.com", "horse-battery-9") is False
     assert roles(db) == {"d@example.com": "driver"}
 
 
@@ -61,7 +61,7 @@ def test_ensure_admin_never_promotes_existing_driver(db):
 
 
 def test_seed_on_empty_database(db):
-    assert seed(db) is True
+    assert db.run(seed, db.database) is True
     assert roles(db) == DEMO_EMAILS
     with db.connection() as conn:
         assert conn.execute("SELECT count(*) AS n FROM trips").fetchone()["n"] == 5
@@ -69,15 +69,15 @@ def test_seed_on_empty_database(db):
 
 def test_seed_is_skipped_when_accounts_exist(db):
     create_driver(db, "existing@example.com", "horse-battery-9")
-    assert seed(db) is False
+    assert db.run(seed, db.database) is False
     assert roles(db) == {"existing@example.com": "driver"}
 
 
 def test_deleted_demo_account_does_not_come_back(db):
-    seed(db)
+    db.run(seed, db.database)
     with db.connection() as conn:
         conn.execute("DELETE FROM users WHERE email = 'demo@example.com'")
-    assert seed(db) is False  # e.g. on the next start
+    assert db.run(seed, db.database) is False  # e.g. on the next start
     assert "demo@example.com" not in roles(db)
 
 

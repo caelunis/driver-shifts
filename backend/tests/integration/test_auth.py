@@ -10,7 +10,7 @@ USER = {"email": "Driver@Example.com", "password": "secret-pass", "name": "Ай�
 
 @pytest.fixture
 def app(db):
-    return create_app(db)
+    return create_app(db.database)
 
 
 @pytest.fixture

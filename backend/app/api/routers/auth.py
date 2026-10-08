@@ -1,20 +1,30 @@
-from fastapi import APIRouter, Cookie, Depends, Request, Response, status
-from psycopg_pool import ConnectionPool
+from fastapi import APIRouter, Depends, Response, status
 
-from app.api.deps import get_pool, require_json, set_session_cookie
+from app.api.deps import (
+    AccountServiceDep,
+    AuthServiceDep,
+    LoginLimiterDep,
+    SessionCookie,
+    require_json,
+    set_session_cookie,
+)
 from app.core.constants import SESSION_COOKIE
 from app.core.enums import ErrorCode
 from app.core.errors import ApiError
-from app.core.security import LoginLimiter
+from app.domain.models import AccountProfile
 from app.schemas.accounts import LoginIn, Profile
-from app.services import accounts
 
-router = APIRouter(prefix="/api/auth")
+router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 @router.post("/login", response_model=Profile)
-def login(data: LoginIn, request: Request, response: Response, pool: ConnectionPool = Depends(get_pool)):
-    limiter: LoginLimiter = request.app.state.login_limiter
+async def login(
+    data: LoginIn,
+    response: Response,
+    auth: AuthServiceDep,
+    accounts: AccountServiceDep,
+    limiter: LoginLimiterDep,
+) -> AccountProfile:
     key = data.email.lower()
     if wait := limiter.retry_after(key):
         raise ApiError(
@@ -24,7 +34,7 @@ def login(data: LoginIn, request: Request, response: Response, pool: ConnectionP
             headers={"Retry-After": str(wait)},
             retry_after=wait,
         )
-    user_id = accounts.authenticate(pool, data.email, data.password)
+    user_id = await auth.authenticate(data.email, data.password)
     if user_id is None:
         limiter.failure(key)
         # Same answer for unknown email and wrong password
@@ -32,14 +42,12 @@ def login(data: LoginIn, request: Request, response: Response, pool: ConnectionP
             ErrorCode.INVALID_CREDENTIALS, "Invalid email or password", status=status.HTTP_401_UNAUTHORIZED
         )
     limiter.success(key)
-    set_session_cookie(response, accounts.create_session(pool, user_id))
-    return accounts.get_profile(pool, user_id)
+    set_session_cookie(response, await auth.create_session(user_id))
+    return await accounts.profile(user_id)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_json)])
-def logout(
-    response: Response, session: str | None = Cookie(default=None), pool: ConnectionPool = Depends(get_pool)
-):
+async def logout(response: Response, auth: AuthServiceDep, session: SessionCookie = None) -> None:
     if session:
-        accounts.end_session(pool, session)
+        await auth.end_session(session)
     response.delete_cookie(SESSION_COOKIE, path="/")

@@ -10,7 +10,7 @@ SCRATCH_URL = TEST_DATABASE_URL.rsplit("/", 1)[0] + "/" + SCRATCH_DB
 
 
 @pytest.fixture
-def scratch_db(pool):  # `pool` makes sure Postgres and dbmate are available
+def scratch_db(database):  # `database` makes sure Postgres and dbmate are available
     with psycopg.connect(TEST_DATABASE_URL, autocommit=True) as conn:
         conn.execute(f"DROP DATABASE IF EXISTS {SCRATCH_DB}")
         conn.execute(f"CREATE DATABASE {SCRATCH_DB}")

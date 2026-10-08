@@ -23,7 +23,7 @@ def driver_id(db):
 @pytest.fixture
 def driver(db, driver_id):
     assert day_shift(db, driver_id) == 1
-    c = TestClient(create_app(db))
+    c = TestClient(create_app(db.database))
     c.post("/api/auth/login", json={"email": "driver@example.com", "password": "driver-pass"})
     return c
 

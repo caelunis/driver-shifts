@@ -89,10 +89,12 @@ known-first-party = ["app", "scripts", "tests"]
 python_version = "3.12"
 files = ["app", "scripts"]
 plugins = ["pydantic.mypy"]
-# Basic checking for now; strict mode comes with the class-based layers (step 3 of v3)
-check_untyped_defs = true
-warn_unused_ignores = true
-warn_redundant_casts = true
+strict = true
+warn_unreachable = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
 
 [[tool.mypy.overrides]]
 module = ["tests.*"]

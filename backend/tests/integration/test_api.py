@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 
 from app.main import create_app
 from app.schemas.trips import TripIn
-from app.services import trips as trips_service
+from app.services.trips import TripService
 from tests.api import fields
 from tests.factories import day_shift
 
@@ -33,8 +33,8 @@ def client(db, driver_id):
     """Logged-in client of the conftest driver, who already has trips T1 and T2."""
     assert day_shift(db, driver_id) == 1
     for t in (T1, T2):
-        trips_service.add(db, driver_id, TripIn(**t))
-    c = TestClient(create_app(db))
+        db.service(TripService).add(driver_id, TripIn(**t))
+    c = TestClient(create_app(db.database))
     r = c.post("/api/auth/login", json={"email": "driver@example.com", "password": "horse-battery-9"})
     assert r.status_code == 200
     return c
@@ -53,7 +53,7 @@ def count_trips(client, day="2026-10-01"):
 
 
 def test_health(db):
-    assert TestClient(create_app(db)).get("/api/health").json() == {"status": "ok"}
+    assert TestClient(create_app(db.database)).get("/api/health").json() == {"status": "ok"}
 
 
 def test_list_trips_and_summary(client):

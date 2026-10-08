@@ -1,40 +1,95 @@
-"""FastAPI dependencies shared by the driver and admin routes."""
+"""FastAPI dependencies: the database, the services built on it, and who is asking.
+
+Routers declare what they need with the Annotated aliases below, e.g.
+`async def handler(trips: TripServiceDep, driver_id: DriverId)`.
+"""
+
+from typing import Annotated
 
 from fastapi import Cookie, Depends, Request, Response, status
-from psycopg_pool import ConnectionPool
 
 from app.core.config import get_settings
 from app.core.constants import SESSION_COOKIE, SESSION_TTL
 from app.core.enums import ErrorCode, Role
 from app.core.errors import ApiError
-from app.services import accounts
+from app.core.security import LoginLimiter
+from app.db.database import Database
+from app.domain.models import Principal
+from app.services.accounts import AccountService
+from app.services.auth import AuthService
+from app.services.shifts import ShiftService
+from app.services.trips import TripService
 
 
-def get_pool(request: Request) -> ConnectionPool:
-    return request.app.state.pool
+def get_db(request: Request) -> Database:
+    db: Database = request.app.state.db
+    return db
 
 
-def current_account(
-    pool: ConnectionPool = Depends(get_pool), session: str | None = Cookie(default=None)
-) -> dict:
-    """{"id", "role"} of the logged-in account, or 401."""
-    account = accounts.account_by_session(pool, session) if session else None
-    if account is None:
+def get_login_limiter(request: Request) -> LoginLimiter:
+    limiter: LoginLimiter = request.app.state.login_limiter
+    return limiter
+
+
+DbDep = Annotated[Database, Depends(get_db)]
+LoginLimiterDep = Annotated[LoginLimiter, Depends(get_login_limiter)]
+
+
+# --- services: built per request on the shared pool; they hold no state of their own ---
+
+
+def get_auth_service(db: DbDep) -> AuthService:
+    return AuthService(db)
+
+
+def get_account_service(db: DbDep) -> AccountService:
+    return AccountService(db)
+
+
+def get_shift_service(db: DbDep) -> ShiftService:
+    return ShiftService(db)
+
+
+def get_trip_service(db: DbDep) -> TripService:
+    return TripService(db)
+
+
+AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
+AccountServiceDep = Annotated[AccountService, Depends(get_account_service)]
+ShiftServiceDep = Annotated[ShiftService, Depends(get_shift_service)]
+TripServiceDep = Annotated[TripService, Depends(get_trip_service)]
+SessionCookie = Annotated[str | None, Cookie(alias=SESSION_COOKIE)]
+
+
+# --- who is asking ---
+
+
+async def current_principal(auth: AuthServiceDep, session: SessionCookie = None) -> Principal:
+    """The logged-in account, or 401."""
+    principal = await auth.principal(session) if session else None
+    if principal is None:
         raise ApiError(ErrorCode.NOT_AUTHENTICATED, "Log in first", status=status.HTTP_401_UNAUTHORIZED)
-    return account
+    return principal
 
 
-def require_driver(account: dict = Depends(current_account)) -> int:
+CurrentPrincipal = Annotated[Principal, Depends(current_principal)]
+
+
+def require_driver(principal: CurrentPrincipal) -> int:
     """Driver id. Admins have no diary of their own, so driver endpoints are 403 for them."""
-    if account["role"] != Role.DRIVER:
+    if principal.role != Role.DRIVER:
         raise ApiError(ErrorCode.DRIVERS_ONLY, "Only drivers can do this", status=status.HTTP_403_FORBIDDEN)
-    return account["id"]
+    return principal.id
 
 
-def require_admin(account: dict = Depends(current_account)) -> int:
-    if account["role"] != Role.ADMIN:
+def require_admin(principal: CurrentPrincipal) -> int:
+    if principal.role != Role.ADMIN:
         raise ApiError(ErrorCode.ADMINS_ONLY, "Only the admin can do this", status=status.HTTP_403_FORBIDDEN)
-    return account["id"]
+    return principal.id
+
+
+DriverId = Annotated[int, Depends(require_driver)]
+AdminId = Annotated[int, Depends(require_admin)]
 
 
 def require_json(request: Request) -> None:

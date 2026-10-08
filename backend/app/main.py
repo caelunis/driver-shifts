@@ -1,32 +1,32 @@
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from psycopg_pool import ConnectionPool
 
 from app.api import errors
-from app.api.routes import auth, health, me, shifts, trips
-from app.api.routes.admin import drivers as admin_drivers
+from app.api.routers import auth, health, me, shifts, trips
+from app.api.routers.admin import drivers as admin_drivers
 from app.core.config import get_settings
-from app.core.db import open_pool
 from app.core.security import LoginLimiter
+from app.db.database import Database
 
 
-def create_app(pool: ConnectionPool | None = None) -> FastAPI:
-    """Pass a pool in tests; otherwise the app connects to the POSTGRES_* database on startup.
+def create_app(db: Database | None = None) -> FastAPI:
+    """Pass a database in tests; otherwise the app connects to the POSTGRES_* database on startup.
 
     The app never creates or changes the schema: run `dbmate up` first.
     """
 
     @asynccontextmanager
-    async def lifespan(app: FastAPI):
-        if pool is not None:
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        if db is not None:
             yield
             return
-        app.state.pool = open_pool(get_settings().database_url())
+        app.state.db = await Database.connect(get_settings().database_url())
         try:
             yield
         finally:
-            app.state.pool.close()
+            await app.state.db.close()
 
     # Everything under /api: the frontend's nginx proxies only that prefix
     app = FastAPI(
@@ -36,8 +36,8 @@ def create_app(pool: ConnectionPool | None = None) -> FastAPI:
         redoc_url=None,
         openapi_url="/api/openapi.json",
     )
-    if pool is not None:
-        app.state.pool = pool
+    if db is not None:
+        app.state.db = db
     app.state.login_limiter = LoginLimiter()
 
     errors.install(app)

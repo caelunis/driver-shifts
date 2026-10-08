@@ -31,6 +31,13 @@ repos:
         language: system
         types: [python]
         files: ^backend/
+      - id: mypy
+        name: mypy --strict (backend)
+        entry: bash -c 'cd backend && uv run mypy'
+        language: system
+        types: [python]
+        files: ^backend/(app|scripts)/
+        pass_filenames: false
       - id: uv-lock
         name: uv.lock matches pyproject.toml
         entry: uv lock --check --project backend

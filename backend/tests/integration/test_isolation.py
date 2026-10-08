@@ -17,7 +17,7 @@ DAY = {"date": "2026-10-01"}
 
 @pytest.fixture
 def app(db):
-    return create_app(db)
+    return create_app(db.database)
 
 
 def logged_in(app, db, email, password="horse-battery-9"):

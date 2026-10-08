@@ -1,143 +1,119 @@
-import hashlib
-import logging
-import secrets
-from datetime import UTC, datetime
+"""Accounts: the driver's own profile and the admin's management of drivers."""
 
-from psycopg_pool import ConnectionPool
+import asyncio
+import logging
+from collections.abc import Mapping
+from decimal import Decimal
+from typing import Any
+
 from pydantic_core import PydanticCustomError
 
-from app.core.constants import SESSION_TOKEN_BYTES, SESSION_TTL
 from app.core.enums import Role
-from app.core.errors import DomainValidationError
-from app.core.security import hash_password, verify_password
-from app.repositories import drivers as drivers_repo
-from app.repositories import users as users_repo
-from app.schemas.accounts import DriverCreate, DriverInfo, Profile
+from app.core.errors import DomainValidationError, NotFoundError
+from app.core.security import hash_password
+from app.db.database import Database
+from app.domain.models import AccountProfile, DriverOverview
+from app.schemas.accounts import DriverCreate
 from app.schemas.common import check_password
 
 log = logging.getLogger(__name__)
 
 
-# Verified against when the email is unknown, so a login attempt takes the same
-# time whether or not the account exists (no account enumeration via timing).
-_DUMMY_HASH = hash_password(secrets.token_hex(SESSION_TOKEN_BYTES))
+def _pct(value: float | None) -> Decimal | None:
+    # Through str: Decimal(12.3) would carry the float's binary error
+    return None if value is None else Decimal(str(value))
 
 
-def _token_hash(token: str) -> str:
-    # Only a hash of the session token is stored: a leaked sessions table
-    # cannot be used to log in.
-    return hashlib.sha256(token.encode()).hexdigest()
+class AccountService:
+    def __init__(self, db: Database) -> None:
+        self._db = db
 
+    # --- any account ---
 
-# --- login and sessions ---
+    async def profile(self, user_id: int) -> AccountProfile:
+        async with self._db.unit_of_work() as uow:
+            profile = await uow.drivers.profile(user_id)
+        if profile is None:
+            raise NotFoundError()
+        return profile
 
+    async def set_timezone(self, driver_id: int, tz: str) -> AccountProfile:
+        async with self._db.unit_of_work() as uow:
+            await uow.drivers.update_profile(driver_id, {"default_tz": tz})
+            profile = await uow.drivers.profile(driver_id)
+        if profile is None:
+            raise NotFoundError()
+        return profile
 
-def authenticate(pool: ConnectionPool, email: str, password: str) -> int | None:
-    with pool.connection() as conn:
-        row = users_repo.find_by_email(conn, email)
-    if row is None:
-        verify_password(password, _DUMMY_HASH)
-        return None
-    return row["id"] if verify_password(password, row["password_hash"]) else None
+    # --- drivers, managed by the admin ---
 
+    async def create_driver(self, data: DriverCreate) -> DriverOverview:
+        """The account and its profile in one transaction: both or neither."""
+        password_hash = await asyncio.to_thread(hash_password, data.password)
+        async with self._db.unit_of_work() as uow:
+            user_id = await uow.users.insert(data.email, password_hash, Role.DRIVER)
+            await uow.drivers.insert_profile(
+                user_id,
+                data.name,
+                data.car_model,
+                data.car_plate,
+                data.default_tz,
+                _pct(data.default_commission_pct),
+            )
+            driver = await uow.drivers.with_totals(user_id)
+        assert driver is not None  # noqa: S101 - created just above, in the same transaction
+        return driver
 
-def create_session(pool: ConnectionPool, user_id: int) -> str:
-    token = secrets.token_urlsafe(SESSION_TOKEN_BYTES)
-    with pool.connection() as conn:
-        users_repo.insert_session(conn, _token_hash(token), user_id, datetime.now(UTC) + SESSION_TTL)
-    return token
+    async def update_driver(self, driver_id: int, changes: Mapping[str, Any]) -> DriverOverview:
+        """Apply profile changes; a new password also ends all of the driver's sessions."""
+        changes = dict(changes)
+        if "default_commission_pct" in changes:
+            changes["default_commission_pct"] = _pct(changes["default_commission_pct"])
+        password = changes.pop("password", None)
+        new_hash = await asyncio.to_thread(hash_password, password) if password is not None else None
+        async with self._db.unit_of_work() as uow:
+            if password is not None:
+                try:
+                    check_password(password, await uow.users.email_of(driver_id))
+                except PydanticCustomError as e:
+                    raise DomainValidationError("password", e.type, e.message()) from e
+            await uow.drivers.update_profile(driver_id, changes)
+            if new_hash is not None:
+                await uow.users.set_password_hash(driver_id, new_hash)
+                await uow.sessions.delete_all_of(driver_id)
+            driver = await uow.drivers.with_totals(driver_id)
+        if driver is None:
+            raise NotFoundError()
+        return driver
 
+    async def delete_driver(self, driver_id: int) -> bool:
+        async with self._db.unit_of_work() as uow:
+            return await uow.users.delete_driver(driver_id)
 
-def account_by_session(pool: ConnectionPool, token: str) -> dict | None:
-    """{"id", "role"} for a live session, None for unknown or expired tokens."""
-    with pool.connection() as conn:
-        row = users_repo.find_session(conn, _token_hash(token))
-        if row and not row["alive"]:
-            users_repo.delete_session(conn, _token_hash(token))
-            return None
-    return {"id": row["id"], "role": row["role"]} if row else None
+    async def list_drivers(self, q: str | None = None) -> list[DriverOverview]:
+        async with self._db.unit_of_work() as uow:
+            return await uow.drivers.list_with_totals(q)
 
+    async def get_driver(self, driver_id: int) -> DriverOverview | None:
+        """A driver by id; None for unknown ids and for admin accounts."""
+        async with self._db.unit_of_work() as uow:
+            return await uow.drivers.with_totals(driver_id)
 
-def end_session(pool: ConnectionPool, token: str) -> None:
-    with pool.connection() as conn:
-        users_repo.delete_session(conn, _token_hash(token))
+    # --- admins ---
 
+    async def ensure_admin(self, email: str, password: str) -> bool:
+        """Create an admin account unless the email is already taken. Returns True if created."""
+        password_hash = await asyncio.to_thread(hash_password, password)
+        async with self._db.unit_of_work() as uow:
+            existing = await uow.users.credentials(email)
+            if existing:
+                if existing.role != Role.ADMIN:
+                    # Never silently promote an existing driver account
+                    log.warning("%s belongs to a driver account; admin not created", email)
+                return False
+            await uow.users.insert(email, password_hash, Role.ADMIN)
+        return True
 
-# --- profiles ---
-
-
-def get_profile(pool: ConnectionPool, user_id: int) -> Profile:
-    with pool.connection() as conn:
-        return drivers_repo.get_profile(conn, user_id)
-
-
-def set_timezone(pool: ConnectionPool, driver_id: int, tz: str) -> Profile:
-    with pool.connection() as conn:
-        drivers_repo.update_profile(conn, driver_id, {"default_tz": tz})
-        return drivers_repo.get_profile(conn, driver_id)
-
-
-# --- accounts managed by the admin ---
-
-
-def create_driver(pool: ConnectionPool, data: DriverCreate) -> int:
-    """The account and its profile in one transaction: both or neither."""
-    # Explicit transaction: the repositories' savepoints would otherwise commit on their own
-    # when they run first on a fresh connection
-    with pool.connection() as conn, conn.transaction():
-        user_id = users_repo.insert(conn, data.email, hash_password(data.password), Role.DRIVER)
-        drivers_repo.insert_profile(
-            conn,
-            user_id,
-            data.name,
-            data.car_model,
-            data.car_plate,
-            data.default_tz,
-            data.default_commission_pct,
-        )
-    return user_id
-
-
-def update_driver(pool: ConnectionPool, driver_id: int, changes: dict) -> DriverInfo:
-    """Apply profile changes; a new password also ends all of the driver's sessions."""
-    with pool.connection() as conn, conn.transaction():
-        if "password" in changes:
-            email = drivers_repo.get_profile(conn, driver_id).email
-            try:
-                check_password(changes["password"], email)
-            except PydanticCustomError as e:
-                raise DomainValidationError("password", e.type, e.message()) from e
-        drivers_repo.update_profile(conn, driver_id, changes)
-        if "password" in changes:
-            users_repo.set_password_hash(conn, driver_id, hash_password(changes["password"]))
-            users_repo.delete_sessions_of(conn, driver_id)
-        return drivers_repo.get_with_totals(conn, driver_id)
-
-
-def delete_driver(pool: ConnectionPool, driver_id: int) -> bool:
-    with pool.connection() as conn:
-        return users_repo.delete_driver(conn, driver_id)
-
-
-def list_drivers(pool: ConnectionPool, q: str | None = None) -> list[DriverInfo]:
-    with pool.connection() as conn:
-        return drivers_repo.list_with_totals(conn, q)
-
-
-def get_driver(pool: ConnectionPool, driver_id: int) -> DriverInfo | None:
-    """A driver by id; None for unknown ids and for admin accounts."""
-    with pool.connection() as conn:
-        return drivers_repo.get_with_totals(conn, driver_id)
-
-
-def ensure_admin(pool: ConnectionPool, email: str, password: str) -> bool:
-    """Create an admin account unless the email is already taken. Returns True if created."""
-    with pool.connection() as conn:
-        existing = users_repo.find_by_email(conn, email)
-        if existing:
-            if existing["role"] != Role.ADMIN:
-                # Never silently promote an existing driver account
-                log.warning("%s belongs to a driver account; admin not created", email)
-            return False
-        users_repo.insert(conn, email, hash_password(password), Role.ADMIN)
-    return True
+    async def any_accounts(self) -> bool:
+        async with self._db.unit_of_work() as uow:
+            return await uow.users.any_exist()

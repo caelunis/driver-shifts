@@ -646,7 +646,10 @@ export interface components {
             /** Net Per Hour */
             net_per_hour: number | null;
         };
-        /** Trip */
+        /**
+         * Trip
+         * @description A stored trip.
+         */
         Trip: {
             /** Id */
             id: string;
@@ -662,10 +665,7 @@ export interface components {
              * Format: date-time
              */
             end: string;
-            /**
-             * Amount
-             * @description Trip amount, KZT
-             */
+            /** Amount */
             amount: number;
             payment: components["schemas"]["PaymentMethod"];
             /** Commission */
@@ -758,7 +758,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: string;
+                    };
                 };
             };
         };

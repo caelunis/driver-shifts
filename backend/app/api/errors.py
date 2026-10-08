@@ -1,5 +1,6 @@
 """Exception handlers that render every error in the format described in app.core.errors."""
 
+from collections.abc import Mapping
 from http import HTTPStatus
 from typing import Any
 
@@ -31,15 +32,15 @@ def error_response(
     code: str,
     message: str,
     *,
-    fields: list | None = None,
-    ctx: dict | None = None,
-    headers: dict | None = None,
+    fields: list[dict[str, Any]] | None = None,
+    ctx: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
 ) -> ErrorJSONResponse:
     body = {"code": code, "message": message, "fields": fields or [], "ctx": ctx or {}}
     return ErrorJSONResponse({"error": body}, status_code=status, headers=headers)
 
 
-def _json_safe(value):
+def _json_safe(value: Any) -> Any:
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
     if isinstance(value, (list, tuple)):
@@ -49,7 +50,7 @@ def _json_safe(value):
     return str(value)  # Decimal, datetime, exceptions inside pydantic's ctx
 
 
-def _field(err: dict) -> dict:
+def _field(err: Mapping[str, Any]) -> dict[str, Any]:
     loc = [str(p) for p in err["loc"]]
     if loc and loc[0] in _LOCATIONS:
         loc = loc[1:]
@@ -62,7 +63,7 @@ def _field(err: dict) -> dict:
     }
 
 
-def validation_response(fields: list[dict]) -> ErrorJSONResponse:
+def validation_response(fields: list[dict[str, Any]]) -> ErrorJSONResponse:
     return error_response(
         status.HTTP_422_UNPROCESSABLE_CONTENT,
         ErrorCode.VALIDATION_ERROR,
@@ -73,19 +74,19 @@ def validation_response(fields: list[dict]) -> ErrorJSONResponse:
 
 def install(app: FastAPI) -> None:
     @app.exception_handler(RequestValidationError)
-    async def request_validation(request: Request, exc: RequestValidationError):
+    async def request_validation(request: Request, exc: RequestValidationError) -> ErrorJSONResponse:
         return validation_response([_field(e) for e in exc.errors()])
 
     @app.exception_handler(DomainValidationError)
-    async def domain_validation(request: Request, exc: DomainValidationError):
+    async def domain_validation(request: Request, exc: DomainValidationError) -> ErrorJSONResponse:
         return validation_response([_json_safe(exc.as_field())])
 
     @app.exception_handler(ApiError)
-    async def api_error(request: Request, exc: ApiError):
+    async def api_error(request: Request, exc: ApiError) -> ErrorJSONResponse:
         return error_response(exc.status, exc.code, exc.message, ctx=_json_safe(exc.ctx), headers=exc.headers)
 
     @app.exception_handler(StarletteHTTPException)
-    async def http_error(request: Request, exc: StarletteHTTPException):
+    async def http_error(request: Request, exc: StarletteHTTPException) -> ErrorJSONResponse:
         # Raised by the framework itself: unknown route, wrong method and the like
         phrase = HTTPStatus(exc.status_code).phrase
         return error_response(

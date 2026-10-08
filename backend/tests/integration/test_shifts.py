@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
-from app.services import shifts as shifts_service
+from app.services.shifts import ShiftService
 from tests.api import code, error
 from tests.conftest import NOW
 from tests.factories import create_driver, day_shift
@@ -21,7 +21,7 @@ TRIP = {
 
 @pytest.fixture
 def app(db):
-    return create_app(db)
+    return create_app(db.database)
 
 
 def logged_in(app, email, password="horse-battery-9"):
@@ -68,7 +68,7 @@ def test_only_one_open_shift(driver):
 def test_concurrent_starts_open_exactly_one_shift(db, driver_id):
     def attempt(_):
         try:
-            shifts_service.start(db, driver_id)
+            db.service(ShiftService).start(driver_id)
             return "ok"
         except Exception as e:
             return type(e).__name__
@@ -159,7 +159,7 @@ def test_cannot_close_before_last_trip(driver):
 def test_forgotten_shift_can_always_be_closed(db, driver, driver_id):
     """Opened 10 days ago and never closed: older than the 7-day window, still closable."""
     started = NOW - timedelta(days=10)
-    shift = shifts_service.start(db, driver_id, started, by_admin=True)
+    shift = db.service(ShiftService).start(driver_id, started, by_admin=True)
     assert driver.get("/api/shifts/current").json()["id"] == shift.id
 
     too_long = driver.post(f"/api/shifts/{shift.id}/close", json={})  # now = 10 days later
@@ -174,7 +174,7 @@ def test_forgotten_shift_can_always_be_closed(db, driver, driver_id):
 
 def test_close_another_drivers_shift_is_404(db, driver):
     other = create_driver(db, "other@example.com", "horse-battery-9")
-    shift = shifts_service.start(db, other)
+    shift = db.service(ShiftService).start(other)
     assert driver.post(f"/api/shifts/{shift.id}/close", json={}).status_code == 404
     assert driver.get(f"/api/shifts/{shift.id}").status_code == 404
 
@@ -217,8 +217,7 @@ def test_trip_in_open_shift_cannot_end_in_future(driver):
 
 
 def test_shift_older_than_window_is_locked_for_the_driver(db, driver, driver_id):
-    old = shifts_service.start(
-        db,
+    old = db.service(ShiftService).start(
         driver_id,
         datetime.fromisoformat("2026-09-20T08:00:00+05:00"),
         datetime.fromisoformat("2026-09-20T18:00:00+05:00"),

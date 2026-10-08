@@ -1,11 +1,11 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic import Field, ValidationInfo, field_validator
 from pydantic_core import PydanticCustomError
 
 from app.core.constants import NOTE_MAX_LENGTH
 from app.core.enums import ErrorCode, ShiftStatus
-from app.schemas.common import AwareDatetime, StrictModel
+from app.schemas.common import AwareDatetime, ResponseModel, StrictModel
 from app.schemas.trips import Totals, Trip
 
 
@@ -18,7 +18,7 @@ class ShiftStartIn(StrictModel):
 
     @field_validator("end")
     @classmethod
-    def end_needs_start_and_after_it(cls, v, info: ValidationInfo):
+    def end_needs_start_and_after_it(cls, v: datetime | None, info: ValidationInfo) -> datetime | None:
         if v is None:
             return v
         start = info.data.get("start")
@@ -42,7 +42,7 @@ class ShiftPatch(StrictModel):
 
     @field_validator("start", "note")
     @classmethod
-    def not_null(cls, v):
+    def not_null(cls, v: object) -> object:
         # Runs only for fields the client sent: rejects an explicit null
         if v is None:
             raise PydanticCustomError(ErrorCode.NULL_NOT_ALLOWED, "Field cannot be null")
@@ -54,7 +54,7 @@ class ShiftSummary(Totals):
     net_per_hour: int | None  # None for shifts shorter than a minute
 
 
-class Shift(BaseModel):
+class Shift(ResponseModel):
     id: int
     start: datetime
     end: datetime | None

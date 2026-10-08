@@ -1,16 +1,23 @@
+import functools
+import inspect
 import os
 import shutil
 import subprocess
+from collections.abc import Awaitable, Callable, Iterator
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import psycopg
 import pytest
+from anyio.from_thread import BlockingPortal, start_blocking_portal
+from fastapi.testclient import TestClient
+from psycopg.rows import DictRow, dict_row
 from pydantic import ValidationError
 
 from app.core import clock
 from app.core.config import Settings, get_settings
-from app.core.db import open_pool
+from app.db.database import Database
 
 BACKEND = Path(__file__).resolve().parent.parent
 
@@ -62,8 +69,57 @@ def dbmate(url: str, *args: str) -> subprocess.CompletedProcess:
     )
 
 
+class SyncService:
+    """A service whose coroutine methods tests call like plain functions: each call runs
+    on the shared event loop (the one the app under test uses) and waits for the result.
+    Calls from several threads run concurrently on that loop."""
+
+    def __init__(self, target: Any, portal: BlockingPortal) -> None:
+        self._target, self._portal = target, portal
+
+    def __getattr__(self, name: str) -> Any:
+        attr = getattr(self._target, name)
+        if not inspect.iscoroutinefunction(attr):
+            return attr
+        return lambda *args, **kwargs: self._portal.call(functools.partial(attr, *args, **kwargs))
+
+
+class TestDb:
+    """The test database: the app's async Database plus sync helpers for tests."""
+
+    __test__ = False  # not a test class, despite the name
+
+    def __init__(self, database: Database, portal: BlockingPortal) -> None:
+        self.database, self.portal = database, portal
+
+    def service(self, cls: type) -> Any:
+        """e.g. db.service(ShiftService).start(driver_id)"""
+        return SyncService(cls(self.database), self.portal)
+
+    def run(self, fn: Callable[..., Awaitable[Any]], *args: Any, **kwargs: Any) -> Any:
+        """Run a coroutine function on the shared loop, e.g. with a unit of work."""
+        return self.portal.call(functools.partial(fn, *args, **kwargs))
+
+    def connection(self) -> psycopg.Connection[DictRow]:
+        """A plain sync connection for raw SQL in tests (committed when the block ends)."""
+        return psycopg.connect(TEST_DATABASE_URL, row_factory=dict_row)
+
+
 @pytest.fixture(scope="session")
-def pool():
+def portal() -> Iterator[BlockingPortal]:
+    """One event loop for the whole run, in a background thread. The async connection
+    pool lives on it, and every TestClient sends its requests through it: asyncio
+    objects such as pool connections must stay on the loop that created them."""
+    with start_blocking_portal() as p:
+        TestClient.portal = p  # instances without a portal of their own use this one
+        try:
+            yield p
+        finally:
+            TestClient.portal = None
+
+
+@pytest.fixture(scope="session")
+def database(portal: BlockingPortal) -> Iterator[Database]:
     """The test database, rebuilt from the migrations once per test run."""
     if shutil.which("dbmate") is None:
         pytest.skip("dbmate is not installed: brew install dbmate")
@@ -81,21 +137,21 @@ def pool():
         )
     result = dbmate(TEST_DATABASE_URL, "up")
     assert result.returncode == 0, result.stderr
-    p = open_pool(TEST_DATABASE_URL, timeout=3)
-    yield p
-    p.close()
+    database = portal.call(Database.connect, TEST_DATABASE_URL, 3)
+    yield database
+    portal.call(database.close)
 
 
 @pytest.fixture
-def db(pool):
+def db(database: Database, portal: BlockingPortal) -> TestDb:
     """Empty tables for every test."""
-    with pool.connection() as conn:
+    with psycopg.connect(TEST_DATABASE_URL) as conn:
         conn.execute("TRUNCATE trips, shifts, sessions, drivers, users RESTART IDENTITY CASCADE")
-    return pool
+    return TestDb(database, portal)
 
 
 @pytest.fixture
-def driver_id(db):
+def driver_id(db: TestDb) -> int:
     from tests.factories import create_driver
 
     return create_driver(db, "driver@example.com", "horse-battery-9", name="Test driver")

@@ -20,7 +20,7 @@ TRIP = {
 
 @pytest.fixture
 def app(db):
-    return create_app(db)
+    return create_app(db.database)
 
 
 @pytest.fixture

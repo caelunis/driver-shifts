@@ -1,6 +1,6 @@
 import pytest
 
-from app.services.commission import commission_for
+from app.services.commission import Commission
 
 
 @pytest.mark.parametrize(
@@ -14,4 +14,4 @@ from app.services.commission import commission_for
     ],
 )
 def test_commission_for(amount, pct, expected):
-    assert commission_for(amount, pct) == expected
+    assert Commission.for_amount(amount, pct) == expected

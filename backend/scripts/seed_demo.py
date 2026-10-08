@@ -6,18 +6,19 @@ Seeds only a database without any accounts, so it is safe to run on every start
 and never brings back accounts that were deleted later.
 """
 
+import asyncio
 import json
 from datetime import datetime
 from pathlib import Path
-
-from psycopg_pool import ConnectionPool
+from typing import Any
 
 from app.core.config import get_settings
-from app.core.db import open_pool
-from app.repositories import users as users_repo
+from app.db.database import Database
 from app.schemas.accounts import DriverCreate
 from app.schemas.trips import TripIn
-from app.services import accounts, shifts, trips
+from app.services.accounts import AccountService
+from app.services.shifts import ShiftService
+from app.services.trips import TripService
 
 DEMO_SHIFTS = Path(__file__).with_name("data") / "demo_shifts.json"
 
@@ -40,34 +41,34 @@ DEMO_DRIVERS = [
 ]
 
 
-def _times(item: dict) -> tuple[datetime, datetime]:
+def _times(item: dict[str, Any]) -> tuple[datetime, datetime]:
     return datetime.fromisoformat(item["start"]), datetime.fromisoformat(item["end"])
 
 
-def seed(pool: ConnectionPool) -> bool:
-    with pool.connection() as conn:
-        if users_repo.any_exist(conn):
-            return False
-    accounts.ensure_admin(pool, *DEMO_ADMIN)
+async def seed(db: Database) -> bool:
+    accounts, shifts, trips = AccountService(db), ShiftService(db), TripService(db)
+    if await accounts.any_accounts():
+        return False
+    await accounts.ensure_admin(*DEMO_ADMIN)
     for driver, shifts_file in DEMO_DRIVERS:
-        driver_id = accounts.create_driver(pool, driver)
+        driver_id = (await accounts.create_driver(driver)).id
         if shifts_file:
             for item in json.loads(shifts_file.read_text(encoding="utf-8")):
                 # Sample data is dated in the past: added as the admin would, without
                 # the driver's 7-day window
-                shift = shifts.start(pool, driver_id, *_times(item), item["note"], by_admin=True)
+                shift = await shifts.start(driver_id, *_times(item), item["note"], by_admin=True)
                 for trip in item["trips"]:
-                    trips.add(pool, driver_id, TripIn(shift_id=shift.id, **trip), by_admin=True)
+                    await trips.add(driver_id, TripIn(shift_id=shift.id, **trip), by_admin=True)
     return True
 
 
-def main() -> None:
-    pool = open_pool(get_settings().database_url())
+async def main() -> None:
+    db = await Database.connect(get_settings().database_url())
     try:
-        print("Demo accounts created" if seed(pool) else "Accounts exist; demo seeding skipped")
+        print("Demo accounts created" if await seed(db) else "Accounts exist; demo seeding skipped")
     finally:
-        pool.close()
+        await db.close()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

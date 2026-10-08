@@ -7,15 +7,16 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
-from app.services import shifts as shifts_service
-from app.services import trips as trips_service
+from app.schemas.trips import TripIn
+from app.services.shifts import ShiftService
+from app.services.trips import TripService
 from tests.api import code, error, field_ctx
 from tests.factories import create_driver, day_shift, set_commission_pct
 
 
 @pytest.fixture
 def app(db):
-    return create_app(db)
+    return create_app(db.database)
 
 
 def logged_in(app, email, password="horse-battery-9"):
@@ -205,10 +206,9 @@ def test_other_drivers_trip_is_not_found(app, db, driver, shift):
 def old_trip(db, driver_id):
     """A trip in a shift that ended on 2026-09-20, more than 7 days before "now"."""
     old = day_shift(db, driver_id, day="2026-09-20")
-    trips_service.add(
-        db,
+    db.service(TripService).add(
         driver_id,
-        trips_service.TripIn(**trip(shift_id=old, start=at("09-20T08:10"), end=at("09-20T08:32"))),
+        TripIn(**trip(shift_id=old, start=at("09-20T08:10"), end=at("09-20T08:32"))),
         by_admin=True,
     )
     return old
@@ -362,12 +362,11 @@ def test_other_drivers_shift_is_not_found(app, db, driver, shift):
 
 def test_concurrent_trip_and_shift_edits_do_not_deadlock(db, driver_id, shift):
     other = day_shift(db, driver_id, day="2026-10-02")
-    trips_service.add(db, driver_id, trips_service.TripIn(**trip()))
+    db.service(TripService).add(driver_id, TripIn(**trip()))
 
     def move(i):
         day = "10-02" if i % 2 else "10-01"
-        trips_service.update(
-            db,
+        db.service(TripService).update(
             driver_id,
             "t1",
             {
@@ -378,7 +377,7 @@ def test_concurrent_trip_and_shift_edits_do_not_deadlock(db, driver_id, shift):
         )
 
     def touch_shifts(i):
-        shifts_service.update(db, driver_id, shift if i % 2 else other, {"note": str(i)})
+        db.service(ShiftService).update(driver_id, shift if i % 2 else other, {"note": str(i)})
 
     with ThreadPoolExecutor(max_workers=4) as ex:
         futures = [ex.submit(f, i) for i in range(20) for f in (move, touch_shifts)]

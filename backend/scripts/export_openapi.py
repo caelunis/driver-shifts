@@ -11,5 +11,5 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.main import create_app
 
-# Any pool object will do: building the schema never touches the database
-print(json.dumps(create_app(pool=object()).openapi(), ensure_ascii=False, indent=2))
+# Building the schema never touches the database: the app connects only on startup
+print(json.dumps(create_app().openapi(), ensure_ascii=False, indent=2))

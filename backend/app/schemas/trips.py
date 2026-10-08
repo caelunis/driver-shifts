@@ -1,12 +1,12 @@
 import hashlib
 from datetime import UTC, date, datetime, timedelta
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic import Field, ValidationInfo, field_validator
 from pydantic_core import PydanticCustomError
 
 from app.core.constants import MAX_FARE, MAX_TRIP_DURATION, MIN_TRIP_DURATION, TRIP_ID_MAX_LENGTH
 from app.core.enums import ErrorCode, PaymentMethod
-from app.schemas.common import AwareDatetime, StrictModel
+from app.schemas.common import AwareDatetime, ResponseModel, StrictModel
 
 
 class TripIn(StrictModel):
@@ -72,11 +72,6 @@ class TripIn(StrictModel):
         )
         return "auto-" + hashlib.sha256(raw.encode()).hexdigest()[:16]
 
-    def to_trip(self) -> "Trip":
-        data = self.model_dump()
-        data["id"] = self.id or self.fingerprint()
-        return Trip(**data)
-
 
 class TripPatch(StrictModel):
     """Changes to a stored trip; omitted fields keep their values. The id never changes."""
@@ -93,36 +88,32 @@ class TripPatch(StrictModel):
     # on the merged trip, since one side of the pair may come from the stored row.
     @field_validator("shift_id", "start", "end", "amount", "payment", "commission")
     @classmethod
-    def not_null(cls, v):
+    def not_null(cls, v: object) -> object:
         if v is None:
             raise PydanticCustomError(ErrorCode.NULL_NOT_ALLOWED, "Field cannot be null")
         return v
 
 
-class Trip(TripIn):
+class Trip(ResponseModel):
+    """A stored trip."""
+
     id: str
-    commission: int  # always known once the trip is stored
+    shift_id: int
+    start: datetime
+    end: datetime
+    amount: int
+    payment: PaymentMethod
+    commission: int
     # The percent the commission was computed with; None if it was entered by hand
     commission_pct: float | None = None
 
-    def same_content(self, other: "Trip") -> bool:
-        # Aware datetimes compare by instant, not by how the offset is written
-        return (
-            self.shift_id == other.shift_id
-            and self.start == other.start
-            and self.end == other.end
-            and self.amount == other.amount
-            and self.payment == other.payment
-            and self.commission == other.commission
-        )
 
-
-class PaymentBreakdown(BaseModel):
+class PaymentBreakdown(ResponseModel):
     count: int = 0
     amount: int = 0
 
 
-class Totals(BaseModel):
+class Totals(ResponseModel):
     count: int
     revenue: int
     commission: int
@@ -138,7 +129,7 @@ class DaySummary(Totals):
     shifts: int
 
 
-class DayInfo(BaseModel):
+class DayInfo(ResponseModel):
     """Short per-day entry for the day navigation panel: a day with at least one shift."""
 
     date: date

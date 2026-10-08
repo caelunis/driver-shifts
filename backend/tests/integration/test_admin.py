@@ -28,7 +28,7 @@ NEW_DRIVER = {
 
 @pytest.fixture
 def app(db):
-    return create_app(db)
+    return create_app(db.database)
 
 
 def logged_in(app, email, password):

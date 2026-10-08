@@ -1,20 +1,18 @@
-from fastapi import APIRouter, Depends, status
-from psycopg_pool import ConnectionPool
+from fastapi import APIRouter, status
 
-from app.api.deps import get_pool
+from app.api.deps import DbDep
 from app.core.constants import HEALTH_DB_TIMEOUT
 from app.core.enums import ErrorCode
 from app.core.errors import ApiError
 
-router = APIRouter()
+router = APIRouter(tags=["service"])
 
 
 @router.get("/api/health")
-def health(pool: ConnectionPool = Depends(get_pool)):
+async def health(db: DbDep) -> dict[str, str]:
     """Liveness + database check, used by the Docker healthcheck."""
     try:
-        with pool.connection(timeout=HEALTH_DB_TIMEOUT) as conn:
-            conn.execute("SELECT 1")
+        await db.ping(HEALTH_DB_TIMEOUT)
     except Exception as e:
         raise ApiError(
             ErrorCode.DB_UNAVAILABLE, "Database unavailable", status=status.HTTP_503_SERVICE_UNAVAILABLE

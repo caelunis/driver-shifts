@@ -1,27 +1,28 @@
-from fastapi import APIRouter, Body, Depends, status
+from typing import Annotated, Any
+
+from fastapi import APIRouter, Body, status
 from fastapi.exceptions import RequestValidationError
-from psycopg_pool import ConnectionPool
 from pydantic import ValidationError
 
-from app.api.deps import current_account, get_pool, require_driver
+from app.api.deps import AccountServiceDep, CurrentPrincipal, DriverId
 from app.core.constants import DRIVER_SELF_EDITABLE
 from app.core.enums import ErrorCode
 from app.core.errors import ApiError
+from app.domain.models import AccountProfile
 from app.schemas.accounts import Profile, SelfProfileUpdate
-from app.services import accounts
 
-router = APIRouter(prefix="/api/me")
+router = APIRouter(prefix="/api/me", tags=["profile"])
 
 
 @router.get("", response_model=Profile)
-def me(pool: ConnectionPool = Depends(get_pool), account: dict = Depends(current_account)):
-    return accounts.get_profile(pool, account["id"])
+async def me(accounts: AccountServiceDep, principal: CurrentPrincipal) -> AccountProfile:
+    return await accounts.profile(principal.id)
 
 
 @router.patch("", response_model=Profile)
-def update_me(
-    body: dict = Body(...), pool: ConnectionPool = Depends(get_pool), driver_id: int = Depends(require_driver)
-):
+async def update_me(
+    body: Annotated[dict[str, Any], Body()], accounts: AccountServiceDep, driver_id: DriverId
+) -> AccountProfile:
     # Explicit 403 rather than silently ignoring fields the driver may not change
     if forbidden := sorted(set(body) - DRIVER_SELF_EDITABLE):
         raise ApiError(
@@ -37,4 +38,4 @@ def update_me(
         raise RequestValidationError(
             [{**err, "loc": ("body", *err["loc"])} for err in e.errors(include_url=False)]
         ) from e
-    return accounts.set_timezone(pool, driver_id, changes.default_tz)
+    return await accounts.set_timezone(driver_id, changes.default_tz)

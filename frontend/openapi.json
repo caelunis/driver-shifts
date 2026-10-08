@@ -7,6 +7,9 @@
   "paths": {
     "/api/health": {
       "get": {
+        "tags": [
+          "service"
+        ],
         "summary": "Health",
         "description": "Liveness + database check, used by the Docker healthcheck.",
         "operationId": "health_api_health_get",
@@ -15,7 +18,13 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Api Health Get"
+                }
               }
             }
           }
@@ -24,6 +33,9 @@
     },
     "/api/auth/login": {
       "post": {
+        "tags": [
+          "auth"
+        ],
         "summary": "Login",
         "operationId": "login_api_auth_login_post",
         "requestBody": {
@@ -62,6 +74,9 @@
     },
     "/api/auth/logout": {
       "post": {
+        "tags": [
+          "auth"
+        ],
         "summary": "Logout",
         "operationId": "logout_api_auth_logout_post",
         "parameters": [
@@ -101,6 +116,9 @@
     },
     "/api/me": {
       "get": {
+        "tags": [
+          "profile"
+        ],
         "summary": "Me",
         "operationId": "me_api_me_get",
         "parameters": [
@@ -145,6 +163,9 @@
         }
       },
       "patch": {
+        "tags": [
+          "profile"
+        ],
         "summary": "Update Me",
         "operationId": "update_me_api_me_patch",
         "parameters": [
@@ -203,6 +224,9 @@
     },
     "/api/shifts": {
       "get": {
+        "tags": [
+          "shifts"
+        ],
         "summary": "List Shifts",
         "description": "Shifts that started on this local day, each with its summary.",
         "operationId": "list_shifts_api_shifts_get",
@@ -262,6 +286,9 @@
         }
       },
       "post": {
+        "tags": [
+          "shifts"
+        ],
         "summary": "Start Shift",
         "operationId": "start_shift_api_shifts_post",
         "parameters": [
@@ -318,6 +345,9 @@
     },
     "/api/shifts/current": {
       "get": {
+        "tags": [
+          "shifts"
+        ],
         "summary": "Current Shift",
         "description": "The open shift, or null.",
         "operationId": "current_shift_api_shifts_current_get",
@@ -373,6 +403,9 @@
     },
     "/api/shifts/{shift_id}": {
       "get": {
+        "tags": [
+          "shifts"
+        ],
         "summary": "Get Shift",
         "operationId": "get_shift_api_shifts__shift_id__get",
         "parameters": [
@@ -426,6 +459,9 @@
         }
       },
       "patch": {
+        "tags": [
+          "shifts"
+        ],
         "summary": "Update Shift",
         "operationId": "update_shift_api_shifts__shift_id__patch",
         "parameters": [
@@ -489,6 +525,9 @@
         }
       },
       "delete": {
+        "tags": [
+          "shifts"
+        ],
         "summary": "Delete Shift",
         "description": "Deletes the shift together with its trips.",
         "operationId": "delete_shift_api_shifts__shift_id__delete",
@@ -538,6 +577,9 @@
     },
     "/api/shifts/{shift_id}/close": {
       "post": {
+        "tags": [
+          "shifts"
+        ],
         "summary": "Close Shift",
         "operationId": "close_shift_api_shifts__shift_id__close_post",
         "parameters": [
@@ -603,6 +645,9 @@
     },
     "/api/days": {
       "get": {
+        "tags": [
+          "trips"
+        ],
         "summary": "List Days",
         "operationId": "list_days_api_days_get",
         "parameters": [
@@ -653,6 +698,9 @@
     },
     "/api/trips": {
       "get": {
+        "tags": [
+          "trips"
+        ],
         "summary": "List Trips",
         "operationId": "list_trips_api_trips_get",
         "parameters": [
@@ -711,6 +759,9 @@
         }
       },
       "post": {
+        "tags": [
+          "trips"
+        ],
         "summary": "Add Trip",
         "operationId": "add_trip_api_trips_post",
         "parameters": [
@@ -767,6 +818,9 @@
     },
     "/api/summary": {
       "get": {
+        "tags": [
+          "trips"
+        ],
         "summary": "Day Summary",
         "operationId": "day_summary_api_summary_get",
         "parameters": [
@@ -823,6 +877,9 @@
     },
     "/api/trips/{trip_id}": {
       "patch": {
+        "tags": [
+          "trips"
+        ],
         "summary": "Update Trip",
         "operationId": "update_trip_api_trips__trip_id__patch",
         "parameters": [
@@ -886,6 +943,9 @@
         }
       },
       "delete": {
+        "tags": [
+          "trips"
+        ],
         "summary": "Delete Trip",
         "operationId": "delete_trip_api_trips__trip_id__delete",
         "parameters": [
@@ -934,6 +994,9 @@
     },
     "/api/admin/drivers": {
       "get": {
+        "tags": [
+          "admin"
+        ],
         "summary": "List Drivers",
         "operationId": "list_drivers_api_admin_drivers_get",
         "parameters": [
@@ -998,6 +1061,9 @@
         }
       },
       "post": {
+        "tags": [
+          "admin"
+        ],
         "summary": "Create Driver",
         "operationId": "create_driver_api_admin_drivers_post",
         "parameters": [
@@ -1054,6 +1120,9 @@
     },
     "/api/admin/drivers/{driver_id}": {
       "get": {
+        "tags": [
+          "admin"
+        ],
         "summary": "Get Driver",
         "operationId": "get_driver_api_admin_drivers__driver_id__get",
         "parameters": [
@@ -1107,6 +1176,9 @@
         }
       },
       "patch": {
+        "tags": [
+          "admin"
+        ],
         "summary": "Update Driver",
         "operationId": "update_driver_api_admin_drivers__driver_id__patch",
         "parameters": [
@@ -1170,6 +1242,9 @@
         }
       },
       "delete": {
+        "tags": [
+          "admin"
+        ],
         "summary": "Delete Driver",
         "operationId": "delete_driver_api_admin_drivers__driver_id__delete",
         "parameters": [
@@ -1218,6 +1293,9 @@
     },
     "/api/admin/drivers/{driver_id}/days": {
       "get": {
+        "tags": [
+          "admin"
+        ],
         "summary": "Driver Days",
         "operationId": "driver_days_api_admin_drivers__driver_id__days_get",
         "parameters": [
@@ -1277,6 +1355,9 @@
     },
     "/api/admin/drivers/{driver_id}/trips": {
       "get": {
+        "tags": [
+          "admin"
+        ],
         "summary": "Driver Trips",
         "operationId": "driver_trips_api_admin_drivers__driver_id__trips_get",
         "parameters": [
@@ -1346,6 +1427,9 @@
     },
     "/api/admin/drivers/{driver_id}/summary": {
       "get": {
+        "tags": [
+          "admin"
+        ],
         "summary": "Driver Summary",
         "operationId": "driver_summary_api_admin_drivers__driver_id__summary_get",
         "parameters": [
@@ -1411,6 +1495,9 @@
     },
     "/api/admin/drivers/{driver_id}/shifts": {
       "get": {
+        "tags": [
+          "admin"
+        ],
         "summary": "Driver Shifts",
         "operationId": "driver_shifts_api_admin_drivers__driver_id__shifts_get",
         "parameters": [
@@ -1480,6 +1567,9 @@
     },
     "/api/admin/drivers/{driver_id}/shifts/{shift_id}": {
       "get": {
+        "tags": [
+          "admin"
+        ],
         "summary": "Driver Shift",
         "operationId": "driver_shift_api_admin_drivers__driver_id__shifts__shift_id__get",
         "parameters": [
@@ -1542,6 +1632,9 @@
         }
       },
       "patch": {
+        "tags": [
+          "admin"
+        ],
         "summary": "Update Driver Shift",
         "operationId": "update_driver_shift_api_admin_drivers__driver_id__shifts__shift_id__patch",
         "parameters": [
@@ -1614,6 +1707,9 @@
         }
       },
       "delete": {
+        "tags": [
+          "admin"
+        ],
         "summary": "Delete Driver Shift",
         "operationId": "delete_driver_shift_api_admin_drivers__driver_id__shifts__shift_id__delete",
         "parameters": [
@@ -1671,6 +1767,9 @@
     },
     "/api/admin/drivers/{driver_id}/trips/{trip_id}": {
       "patch": {
+        "tags": [
+          "admin"
+        ],
         "summary": "Update Driver Trip",
         "operationId": "update_driver_trip_api_admin_drivers__driver_id__trips__trip_id__patch",
         "parameters": [
@@ -1743,6 +1842,9 @@
         }
       },
       "delete": {
+        "tags": [
+          "admin"
+        ],
         "summary": "Delete Driver Trip",
         "operationId": "delete_driver_trip_api_admin_drivers__driver_id__trips__trip_id__delete",
         "parameters": [
@@ -2534,7 +2636,6 @@
           },
           "shift_id": {
             "type": "integer",
-            "exclusiveMinimum": 0.0,
             "title": "Shift Id"
           },
           "start": {
@@ -2549,10 +2650,7 @@
           },
           "amount": {
             "type": "integer",
-            "maximum": 500000.0,
-            "exclusiveMinimum": 0.0,
-            "title": "Amount",
-            "description": "Trip amount, KZT"
+            "title": "Amount"
           },
           "payment": {
             "$ref": "#/components/schemas/PaymentMethod"
@@ -2573,7 +2671,6 @@
             "title": "Commission Pct"
           }
         },
-        "additionalProperties": false,
         "type": "object",
         "required": [
           "id",
@@ -2584,7 +2681,8 @@
           "payment",
           "commission"
         ],
-        "title": "Trip"
+        "title": "Trip",
+        "description": "A stored trip."
       },
       "TripIn": {
         "properties": {

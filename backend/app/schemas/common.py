@@ -1,5 +1,6 @@
 import re
 import unicodedata
+from collections.abc import Callable
 from datetime import datetime
 from functools import lru_cache
 from typing import Annotated
@@ -20,6 +21,13 @@ from app.core.constants import (
 )
 from app.core.enums import ErrorCode
 from app.core.passwords import is_common
+
+
+class ResponseModel(BaseModel):
+    """Base for responses. Built from domain objects (dataclasses) by attribute, and never
+    re-validated against today's input rules: a row stored under older rules stays readable."""
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class StrictModel(BaseModel):
@@ -62,8 +70,9 @@ def zone(name: str) -> ZoneInfo:
     return ZoneInfo(name)
 
 
-def _clean_text(v: str) -> str:
-    """NFC-normalize, reject control and invisible formatting characters, collapse spaces."""
+def _clean_text(v: object) -> object:
+    """NFC-normalize, reject control and invisible formatting characters, collapse spaces.
+    Non-strings pass through to the type check that follows."""
     if not isinstance(v, str):
         return v
     v = unicodedata.normalize("NFC", v)
@@ -72,7 +81,7 @@ def _clean_text(v: str) -> str:
     return " ".join(v.split())
 
 
-def _max_length(limit: int):
+def _max_length(limit: int) -> Callable[[str], str]:
     # Checked here rather than with Field(max_length): after the BeforeValidator pydantic
     # would report a generic "too_long" instead of the usual string error
     def check(v: str) -> str:
@@ -106,7 +115,7 @@ _LOOKALIKES = str.maketrans(*PLATE_LOOKALIKES)
 _PLATE = re.compile(PLATE_PATTERN)
 
 
-def _normalize_plate(v):
+def _normalize_plate(v: object) -> object:
     if not isinstance(v, str):
         return v
     plate = re.sub(r"[\s-]", "", v).upper().translate(_LOOKALIKES)

@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, EmailStr, Field, ValidationInfo, field_validator
+from pydantic import EmailStr, Field, ValidationInfo, field_validator
 from pydantic_core import PydanticCustomError
 
 from app.core.constants import DEFAULT_TZ, PASSWORD_MAX_LENGTH
@@ -12,6 +12,7 @@ from app.schemas.common import (
     IanaTz,
     Password,
     PersonName,
+    ResponseModel,
     StrictModel,
     check_password,
 )
@@ -22,7 +23,7 @@ class LoginIn(StrictModel):
     password: str = Field(min_length=1, max_length=PASSWORD_MAX_LENGTH)
 
 
-class Profile(BaseModel):
+class Profile(ResponseModel):
     """The logged-in account. Driver fields are None for admins: an admin is a
     user without a driver profile."""
 
@@ -71,7 +72,7 @@ class DriverUpdate(StrictModel):
 
     @field_validator("name", "car_model", "default_tz", "password")
     @classmethod
-    def not_null(cls, v, info: ValidationInfo):
+    def not_null(cls, v: str | None, info: ValidationInfo) -> str:
         # Runs only for fields the client sent: rejects an explicit null
         if v is None:
             raise PydanticCustomError(ErrorCode.NULL_NOT_ALLOWED, "Field cannot be null")
