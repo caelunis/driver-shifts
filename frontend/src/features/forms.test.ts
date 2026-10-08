@@ -71,6 +71,8 @@ describe("driver form", () => {
   it.each([
     [{ email: "nope" }, "email"],
     [{ password: "short" }, "password"],
+    [{ password: "onlyletters" }, "password"],
+    [{ password: "1234567890" }, "password"],
     [{ name: "   " }, "name"],
     [{ name: "12345" }, "name"],
     [{ car_plate: "A123BC" }, "car_plate"],

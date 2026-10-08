@@ -39,23 +39,23 @@ def logged_in(app, email, password):
 
 @pytest.fixture
 def admin_id(db):
-    return create_driver(db, "admin@example.com", "admin-pass", name="Админ", role="admin")
+    return create_driver(db, "admin@example.com", "admin-pass-1", name="Админ", role="admin")
 
 
 @pytest.fixture
 def admin(app, admin_id):
-    return logged_in(app, "admin@example.com", "admin-pass")
+    return logged_in(app, "admin@example.com", "admin-pass-1")
 
 
 @pytest.fixture
 def driver_id(db):
-    return create_driver(db, "driver@example.com", "driver-pass", name="Айдар")
+    return create_driver(db, "driver@example.com", "driver-pass-1", name="Айдар")
 
 
 @pytest.fixture
 def driver(app, db, driver_id):
     assert day_shift(db, driver_id) == 1  # the shift TRIP goes into
-    return logged_in(app, "driver@example.com", "driver-pass")
+    return logged_in(app, "driver@example.com", "driver-pass-1")
 
 
 def count(db, table):
@@ -234,16 +234,17 @@ def test_admin_updates_driver(admin, driver, driver_id):
 
 def test_password_change_ends_driver_sessions(app, admin, driver, driver_id):
     assert (
-        admin.patch(f"/api/admin/drivers/{driver_id}", json={"password": "brand-new-pass"}).status_code == 200
+        admin.patch(f"/api/admin/drivers/{driver_id}", json={"password": "brand-new-pass-1"}).status_code
+        == 200
     )
     assert driver.get("/api/me").status_code == 401
     assert (
         TestClient(app)
-        .post("/api/auth/login", json={"email": "driver@example.com", "password": "driver-pass"})
+        .post("/api/auth/login", json={"email": "driver@example.com", "password": "driver-pass-1"})
         .status_code
         == 401
     )
-    logged_in(app, "driver@example.com", "brand-new-pass")
+    logged_in(app, "driver@example.com", "brand-new-pass-1")
 
 
 def test_profile_change_keeps_driver_sessions(admin, driver, driver_id):
@@ -274,9 +275,24 @@ def test_plate_can_be_removed(admin, driver_id):
     assert r.status_code == 200 and r.json()["car_plate"] is None
 
 
-def test_new_password_must_differ_from_email(admin, driver_id):
-    r = admin.patch(f"/api/admin/drivers/{driver_id}", json={"password": "Driver@Example.com"})
-    assert r.status_code == 422 and error(r) == ("password", "password_like_email")
+def test_new_password_must_differ_from_email(db, admin):
+    # An address with digits, so that the password passes the letter-and-digit rule
+    # and it is the email check that rejects it
+    other = create_driver(db, "erlan2026@example.com", "horse-battery-9")
+    for password in ("Erlan2026@Example.com", "erlan2026"):
+        r = admin.patch(f"/api/admin/drivers/{other}", json={"password": password})
+        assert r.status_code == 422 and error(r) == ("password", "password_like_email")
+
+
+@pytest.mark.parametrize("password", ["onlyletters", "12345678901", "--------!!"])
+def test_password_needs_a_letter_and_a_digit(admin, driver_id, password):
+    r = admin.patch(f"/api/admin/drivers/{driver_id}", json={"password": password})
+    assert r.status_code == 422 and error(r) == ("password", "password_too_weak")
+
+
+def test_password_letters_may_be_cyrillic(admin, driver_id):
+    r = admin.patch(f"/api/admin/drivers/{driver_id}", json={"password": "пароль-для-такси-7"})
+    assert r.status_code == 200
 
 
 @pytest.mark.parametrize(

@@ -12,8 +12,7 @@ from app.core.config import get_settings
 from app.core.constants import SESSION_COOKIE, SESSION_TTL
 from app.core.enums import ErrorCode, Role
 from app.core.errors import ApiError
-from app.core.logging import user_id_var
-from app.core.security import LoginLimiter
+from app.core.ratelimit import LoginLimiter
 from app.db.database import Database
 from app.domain.models import Principal
 from app.services.accounts import AccountService
@@ -65,12 +64,15 @@ SessionCookie = Annotated[str | None, Cookie(alias=SESSION_COOKIE)]
 # --- who is asking ---
 
 
-async def current_principal(auth: AuthServiceDep, session: SessionCookie = None) -> Principal:
-    """The logged-in account, or 401."""
-    principal = await auth.principal(session) if session else None
+def current_principal(request: Request) -> Principal:
+    """The logged-in account, as resolved by AuthMiddleware (app/api/guards.py).
+
+    Non-public paths never get here without one; the check stays as a second line of
+    defence, e.g. for a path wrongly listed as public.
+    """
+    principal: Principal | None = getattr(request.state, "principal", None)
     if principal is None:
         raise ApiError(ErrorCode.NOT_AUTHENTICATED, "Log in first", status=status.HTTP_401_UNAUTHORIZED)
-    user_id_var.set(principal.id)  # every log record of this request names the account
     return principal
 
 

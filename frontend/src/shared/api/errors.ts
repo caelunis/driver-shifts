@@ -58,6 +58,8 @@ export function fieldErrorMessage(e: FieldError): string {
       return "Пароль не должен совпадать с e-mail";
     case "password_too_common":
       return "Слишком простой пароль";
+    case "password_too_weak":
+      return "Нужны хотя бы одна буква и одна цифра";
     case "end_before_start":
       return "Окончание должно быть позже начала";
     case "trip_too_short":
@@ -99,6 +101,10 @@ export function errorMessage(err: unknown): string {
       return "Неверный e-mail или пароль";
     case "too_many_attempts":
       return `Слишком много попыток. Попробуйте через ${Math.ceil(num(err.ctx.retry_after) / 60)} мин.`;
+    case "too_many_requests":
+      return `Слишком много запросов. Подождите ${num(err.ctx.retry_after)} с.`;
+    case "internal_error":
+      return `Ошибка сервера. Код для поддержки: ${String(err.ctx.request_id ?? "—")}`;
     case "not_authenticated":
       return "Сессия истекла, войдите снова";
     case "shift_already_open":

@@ -1,12 +1,13 @@
 from datetime import date
 
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, Depends, Response, status
 
-from app.api.deps import DriverId, ShiftServiceDep
+from app.api.deps import DriverId, ShiftServiceDep, require_driver
 from app.domain.models import ShiftReport
 from app.schemas.shifts import Shift, ShiftCloseIn, ShiftDetail, ShiftPatch, ShiftStartIn
 
-router = APIRouter(prefix="/api/shifts", tags=["shifts"])
+# The role is checked for the whole router: a new endpoint here cannot forget it
+router = APIRouter(prefix="/api/shifts", tags=["shifts"], dependencies=[Depends(require_driver)])
 
 
 @router.get("", response_model=list[Shift])

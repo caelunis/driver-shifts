@@ -22,10 +22,11 @@ _VALID_ID = re.compile(r"^[A-Za-z0-9._-]{8,64}$")
 _QUIET_PATHS = frozenset({"/api/health"})
 
 
-def _client(headers: dict[bytes, bytes], scope: Scope) -> str | None:
+def client_address(scope: Scope) -> str | None:
     """The client's address. Behind nginx the connection comes from nginx itself; nginx
     appends the real address to X-Forwarded-For, so the last entry is the trustworthy one
     (earlier entries are whatever the client sent)."""
+    headers: dict[bytes, bytes] = dict(scope["headers"])
     forwarded = headers.get(b"x-forwarded-for", b"").decode("latin-1")
     if forwarded:
         return forwarded.rsplit(",", 1)[-1].strip()
@@ -93,7 +94,7 @@ class RequestContextMiddleware:
                 "status": status,
                 "duration_ms": round((time.perf_counter() - started) * 1000, 1),
             }
-            if client := _client(headers, scope):
+            if client := client_address(scope):
                 fields["client"] = client
             server_error = status >= http.HTTP_500_INTERNAL_SERVER_ERROR
             if server_error:

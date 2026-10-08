@@ -121,24 +121,6 @@
         ],
         "summary": "Me",
         "operationId": "me_api_me_get",
-        "parameters": [
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -146,16 +128,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Profile"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -168,35 +140,17 @@
         ],
         "summary": "Update Me",
         "operationId": "update_me_api_me_patch",
-        "parameters": [
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
-            }
-          }
-        ],
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
                 "additionalProperties": true,
+                "type": "object",
                 "title": "Body"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -240,22 +194,6 @@
               "format": "date",
               "title": "Date"
             }
-          },
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
-            }
           }
         ],
         "responses": {
@@ -291,24 +229,6 @@
         ],
         "summary": "Start Shift",
         "operationId": "start_shift_api_shifts_post",
-        "parameters": [
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
-            }
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -351,24 +271,6 @@
         "summary": "Current Shift",
         "description": "The open shift, or null.",
         "operationId": "current_shift_api_shifts_current_get",
-        "parameters": [
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -384,16 +286,6 @@
                     }
                   ],
                   "title": "Response Current Shift Api Shifts Current Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -416,22 +308,6 @@
             "schema": {
               "type": "integer",
               "title": "Shift Id"
-            }
-          },
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
             }
           }
         ],
@@ -472,22 +348,6 @@
             "schema": {
               "type": "integer",
               "title": "Shift Id"
-            }
-          },
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
             }
           }
         ],
@@ -540,22 +400,6 @@
               "type": "integer",
               "title": "Shift Id"
             }
-          },
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
-            }
           }
         ],
         "responses": {
@@ -590,22 +434,6 @@
             "schema": {
               "type": "integer",
               "title": "Shift Id"
-            }
-          },
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
             }
           }
         ],
@@ -650,45 +478,17 @@
         ],
         "summary": "List Days",
         "operationId": "list_days_api_days_get",
-        "parameters": [
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/DayInfo"
                   },
+                  "type": "array",
                   "title": "Response List Days Api Days Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -712,22 +512,6 @@
               "type": "string",
               "format": "date",
               "title": "Date"
-            }
-          },
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
             }
           }
         ],
@@ -764,24 +548,6 @@
         ],
         "summary": "Add Trip",
         "operationId": "add_trip_api_trips_post",
-        "parameters": [
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
-            }
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -833,22 +599,6 @@
               "format": "date",
               "title": "Date"
             }
-          },
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
-            }
           }
         ],
         "responses": {
@@ -890,22 +640,6 @@
             "schema": {
               "type": "string",
               "title": "Trip Id"
-            }
-          },
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
             }
           }
         ],
@@ -957,22 +691,6 @@
               "type": "string",
               "title": "Trip Id"
             }
-          },
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
-            }
           }
         ],
         "responses": {
@@ -1015,22 +733,6 @@
               ],
               "title": "Q"
             }
-          },
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
-            }
           }
         ],
         "responses": {
@@ -1066,24 +768,6 @@
         ],
         "summary": "Create Driver",
         "operationId": "create_driver_api_admin_drivers_post",
-        "parameters": [
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
-            }
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1134,22 +818,6 @@
               "type": "integer",
               "title": "Driver Id"
             }
-          },
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
-            }
           }
         ],
         "responses": {
@@ -1189,22 +857,6 @@
             "schema": {
               "type": "integer",
               "title": "Driver Id"
-            }
-          },
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
             }
           }
         ],
@@ -1256,22 +908,6 @@
               "type": "integer",
               "title": "Driver Id"
             }
-          },
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
-            }
           }
         ],
         "responses": {
@@ -1306,22 +942,6 @@
             "schema": {
               "type": "integer",
               "title": "Driver Id"
-            }
-          },
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
             }
           }
         ],
@@ -1379,22 +999,6 @@
               "format": "date",
               "title": "Date"
             }
-          },
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
-            }
           }
         ],
         "responses": {
@@ -1451,22 +1055,6 @@
               "format": "date",
               "title": "Date"
             }
-          },
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
-            }
           }
         ],
         "responses": {
@@ -1518,22 +1106,6 @@
               "type": "string",
               "format": "date",
               "title": "Date"
-            }
-          },
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
             }
           }
         ],
@@ -1590,22 +1162,6 @@
               "type": "integer",
               "title": "Driver Id"
             }
-          },
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
-            }
           }
         ],
         "responses": {
@@ -1654,22 +1210,6 @@
             "schema": {
               "type": "integer",
               "title": "Driver Id"
-            }
-          },
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
             }
           }
         ],
@@ -1730,22 +1270,6 @@
               "type": "integer",
               "title": "Driver Id"
             }
-          },
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
-            }
           }
         ],
         "responses": {
@@ -1789,22 +1313,6 @@
             "schema": {
               "type": "integer",
               "title": "Driver Id"
-            }
-          },
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
             }
           }
         ],
@@ -1864,22 +1372,6 @@
             "schema": {
               "type": "integer",
               "title": "Driver Id"
-            }
-          },
-          {
-            "name": "session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session"
             }
           }
         ],

@@ -147,8 +147,10 @@ def test_conflict_error_shape(driver):
         ("PUT", "/api/health", 405, "method_not_allowed"),
     ],
 )
-def test_framework_errors_use_the_same_format(app, method, path, status, expected):
-    r = TestClient(app).request(method, path)
+def test_framework_errors_use_the_same_format(driver, method, path, status, expected):
+    if status == 401:
+        driver.cookies.clear()
+    r = driver.request(method, path)
     assert r.status_code == status and code(r) == expected
     assert set(r.json()["error"]) == {"code", "message", "fields", "ctx"}
 
@@ -162,7 +164,7 @@ def test_rejected_input_is_not_echoed(app, db):
 def test_too_many_logins_tells_when_to_retry(app, driver_id):
     c = TestClient(app)
     for _ in range(5):
-        c.post("/api/auth/login", json={"email": "driver@example.com", "password": "wrong-pass"})
-    r = c.post("/api/auth/login", json={"email": "driver@example.com", "password": "wrong-pass"})
+        c.post("/api/auth/login", json={"email": "driver@example.com", "password": "wrong-pass-1"})
+    r = c.post("/api/auth/login", json={"email": "driver@example.com", "password": "wrong-pass-1"})
     assert r.status_code == 429 and code(r) == "too_many_attempts"
     assert int(r.headers["Retry-After"]) == r.json()["error"]["ctx"]["retry_after"] > 0

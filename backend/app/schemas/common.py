@@ -15,6 +15,7 @@ from app.core.constants import (
     NAME_MAX_LENGTH,
     PASSWORD_MAX_LENGTH,
     PASSWORD_MIN_LENGTH,
+    PASSWORD_STRENGTH_PATTERN,
     PLATE_LOOKALIKES,
     PLATE_PATTERN,
     TZ_NAME_MAX_LENGTH,
@@ -128,11 +129,18 @@ def _normalize_plate(v: object) -> object:
 CarPlate = Annotated[str, BeforeValidator(_normalize_plate)]
 
 
+_PASSWORD_STRENGTH = re.compile(PASSWORD_STRENGTH_PATTERN)
+
+
 def check_password(password: str, email: str | None) -> None:
     """Raises PydanticCustomError for a password that is easy to guess."""
     lowered = password.lower()
     if email and (lowered == email.lower() or lowered == email.split("@")[0].lower()):
         raise PydanticCustomError(ErrorCode.PASSWORD_LIKE_EMAIL, "Password must differ from the email")
+    if not _PASSWORD_STRENGTH.match(password):
+        raise PydanticCustomError(
+            ErrorCode.PASSWORD_TOO_WEAK, "Password needs at least one letter and one digit"
+        )
     if is_common(password):
         raise PydanticCustomError(ErrorCode.PASSWORD_TOO_COMMON, "This password is too common")
 

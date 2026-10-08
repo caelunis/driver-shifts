@@ -17,14 +17,14 @@ TRIP = {
 
 @pytest.fixture
 def driver_id(db):
-    return create_driver(db, "driver@example.com", "driver-pass")
+    return create_driver(db, "driver@example.com", "driver-pass-1")
 
 
 @pytest.fixture
 def driver(db, driver_id):
     assert day_shift(db, driver_id) == 1
     c = TestClient(create_app(db.database))
-    c.post("/api/auth/login", json={"email": "driver@example.com", "password": "driver-pass"})
+    c.post("/api/auth/login", json={"email": "driver@example.com", "password": "driver-pass-1"})
     return c
 
 

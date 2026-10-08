@@ -832,9 +832,7 @@ export interface operations {
             query?: never;
             header?: never;
             path?: never;
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody?: never;
         responses: {
@@ -847,15 +845,6 @@ export interface operations {
                     "application/json": components["schemas"]["Profile"];
                 };
             };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
         };
     };
     update_me_api_me_patch: {
@@ -863,9 +852,7 @@ export interface operations {
             query?: never;
             header?: never;
             path?: never;
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody: {
             content: {
@@ -902,9 +889,7 @@ export interface operations {
             };
             header?: never;
             path?: never;
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody?: never;
         responses: {
@@ -933,9 +918,7 @@ export interface operations {
             query?: never;
             header?: never;
             path?: never;
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody: {
             content: {
@@ -968,9 +951,7 @@ export interface operations {
             query?: never;
             header?: never;
             path?: never;
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody?: never;
         responses: {
@@ -983,15 +964,6 @@ export interface operations {
                     "application/json": components["schemas"]["Shift"] | null;
                 };
             };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
         };
     };
     get_shift_api_shifts__shift_id__get: {
@@ -1001,9 +973,7 @@ export interface operations {
             path: {
                 shift_id: number;
             };
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody?: never;
         responses: {
@@ -1034,9 +1004,7 @@ export interface operations {
             path: {
                 shift_id: number;
             };
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody?: never;
         responses: {
@@ -1065,9 +1033,7 @@ export interface operations {
             path: {
                 shift_id: number;
             };
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody: {
             content: {
@@ -1102,9 +1068,7 @@ export interface operations {
             path: {
                 shift_id: number;
             };
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody: {
             content: {
@@ -1137,9 +1101,7 @@ export interface operations {
             query?: never;
             header?: never;
             path?: never;
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody?: never;
         responses: {
@@ -1152,15 +1114,6 @@ export interface operations {
                     "application/json": components["schemas"]["DayInfo"][];
                 };
             };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
         };
     };
     list_trips_api_trips_get: {
@@ -1170,9 +1123,7 @@ export interface operations {
             };
             header?: never;
             path?: never;
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody?: never;
         responses: {
@@ -1201,9 +1152,7 @@ export interface operations {
             query?: never;
             header?: never;
             path?: never;
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody: {
             content: {
@@ -1238,9 +1187,7 @@ export interface operations {
             };
             header?: never;
             path?: never;
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody?: never;
         responses: {
@@ -1271,9 +1218,7 @@ export interface operations {
             path: {
                 trip_id: string;
             };
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody?: never;
         responses: {
@@ -1302,9 +1247,7 @@ export interface operations {
             path: {
                 trip_id: string;
             };
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody: {
             content: {
@@ -1339,9 +1282,7 @@ export interface operations {
             };
             header?: never;
             path?: never;
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody?: never;
         responses: {
@@ -1370,9 +1311,7 @@ export interface operations {
             query?: never;
             header?: never;
             path?: never;
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody: {
             content: {
@@ -1407,9 +1346,7 @@ export interface operations {
             path: {
                 driver_id: number;
             };
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody?: never;
         responses: {
@@ -1440,9 +1377,7 @@ export interface operations {
             path: {
                 driver_id: number;
             };
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody?: never;
         responses: {
@@ -1471,9 +1406,7 @@ export interface operations {
             path: {
                 driver_id: number;
             };
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody: {
             content: {
@@ -1508,9 +1441,7 @@ export interface operations {
             path: {
                 driver_id: number;
             };
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody?: never;
         responses: {
@@ -1543,9 +1474,7 @@ export interface operations {
             path: {
                 driver_id: number;
             };
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody?: never;
         responses: {
@@ -1578,9 +1507,7 @@ export interface operations {
             path: {
                 driver_id: number;
             };
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody?: never;
         responses: {
@@ -1613,9 +1540,7 @@ export interface operations {
             path: {
                 driver_id: number;
             };
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody?: never;
         responses: {
@@ -1647,9 +1572,7 @@ export interface operations {
                 shift_id: number;
                 driver_id: number;
             };
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody?: never;
         responses: {
@@ -1681,9 +1604,7 @@ export interface operations {
                 shift_id: number;
                 driver_id: number;
             };
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody?: never;
         responses: {
@@ -1713,9 +1634,7 @@ export interface operations {
                 shift_id: number;
                 driver_id: number;
             };
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody: {
             content: {
@@ -1751,9 +1670,7 @@ export interface operations {
                 trip_id: string;
                 driver_id: number;
             };
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody?: never;
         responses: {
@@ -1783,9 +1700,7 @@ export interface operations {
                 trip_id: string;
                 driver_id: number;
             };
-            cookie?: {
-                session?: string | null;
-            };
+            cookie?: never;
         };
         requestBody: {
             content: {

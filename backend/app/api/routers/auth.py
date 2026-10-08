@@ -30,7 +30,7 @@ async def login(
     limiter: LoginLimiterDep,
 ) -> AccountProfile:
     key = data.email.lower()
-    if wait := limiter.retry_after(key):
+    if wait := await limiter.retry_after(key):
         log.warning("login_rate_limited", extra={"email": mask_email(key), "retry_after": wait})
         raise ApiError(
             ErrorCode.TOO_MANY_ATTEMPTS,
@@ -41,13 +41,13 @@ async def login(
         )
     user_id = await auth.authenticate(data.email, data.password)
     if user_id is None:
-        limiter.failure(key)
+        await limiter.failure(key)
         log.warning("login_failed", extra={"email": mask_email(key)})
         # Same answer for unknown email and wrong password
         raise ApiError(
             ErrorCode.INVALID_CREDENTIALS, "Invalid email or password", status=status.HTTP_401_UNAUTHORIZED
         )
-    limiter.success(key)
+    await limiter.success(key)
     user_id_var.set(user_id)
     log.info("login_succeeded")
     set_session_cookie(response, await auth.create_session(user_id))

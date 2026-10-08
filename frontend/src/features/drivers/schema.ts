@@ -5,6 +5,9 @@ import { normalizePlate } from "@/shared/lib/plate";
 // Mirrors the server's rules (backend app/schemas/accounts.py); the server has the last word,
 // e.g. on the list of common passwords.
 
+/** At least one letter (any alphabet) and one digit, as PASSWORD_STRENGTH_PATTERN on the server */
+const PASSWORD_STRENGTH = /^(?=.*\p{L})(?=.*\d)/u;
+
 /** `creating`: email and password are required; when editing, an empty password keeps the old one. */
 export function driverFormSchema(creating: boolean) {
   return z
@@ -29,10 +32,11 @@ export function driverFormSchema(creating: boolean) {
         }, "От 0 до 99,99"),
     })
     .superRefine((v, ctx) => {
-      if (creating && v.password.length < 8) {
+      if (!creating && !v.password) return; // editing: empty keeps the old password
+      if (v.password.length < 8) {
         ctx.addIssue({ code: "custom", path: ["password"], message: "Не меньше 8 символов" });
-      } else if (!creating && v.password && v.password.length < 8) {
-        ctx.addIssue({ code: "custom", path: ["password"], message: "Не меньше 8 символов" });
+      } else if (!PASSWORD_STRENGTH.test(v.password)) {
+        ctx.addIssue({ code: "custom", path: ["password"], message: "Нужны хотя бы одна буква и одна цифра" });
       }
     });
 }

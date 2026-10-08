@@ -29,6 +29,7 @@ class ErrorCode(StrEnum):
     NOT_AUTHENTICATED = "not_authenticated"
     INVALID_CREDENTIALS = "invalid_credentials"
     TOO_MANY_ATTEMPTS = "too_many_attempts"
+    TOO_MANY_REQUESTS = "too_many_requests"
     DRIVERS_ONLY = "drivers_only"
     ADMINS_ONLY = "admins_only"
     ADMIN_MANAGED_FIELDS = "admin_managed_fields"
@@ -61,6 +62,7 @@ class ErrorCode(StrEnum):
     INVALID_PLATE = "invalid_plate"
     PASSWORD_TOO_COMMON = "password_too_common"  # noqa: S105 - an error code, not a password
     PASSWORD_LIKE_EMAIL = "password_like_email"  # noqa: S105
+    PASSWORD_TOO_WEAK = "password_too_weak"  # noqa: S105
     END_BEFORE_START = "end_before_start"
     START_REQUIRED = "start_required"
     TRIP_TOO_SHORT = "trip_too_short"

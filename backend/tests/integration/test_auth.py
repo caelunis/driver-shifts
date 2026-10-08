@@ -5,7 +5,7 @@ from app.main import create_app
 from tests.api import code, error
 from tests.factories import create_driver
 
-USER = {"email": "Driver@Example.com", "password": "secret-pass", "name": "Айдар"}
+USER = {"email": "Driver@Example.com", "password": "secret-pass-1", "name": "Айдар"}
 
 
 @pytest.fixture
@@ -33,9 +33,12 @@ def login(client, email=USER["email"], password=USER["password"]):
 # --- accounts are created by an admin, there is no self-registration ---
 
 
-def test_self_registration_is_gone(app):
+def test_self_registration_is_gone(app, client):
+    # Anonymous: denied before routing, whether or not the path exists
     r = TestClient(app).post("/api/auth/register", json={**USER, "email": "new@example.com"})
-    assert r.status_code in (404, 405)
+    assert r.status_code == 401
+    r = client.post("/api/auth/register", json={**USER, "email": "new@example.com"})
+    assert r.status_code == 404
 
 
 def test_login_returns_profile_with_role(app, account):

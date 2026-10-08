@@ -4,12 +4,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.api import errors
+from app.api.guards import AuthMiddleware, ThrottleMiddleware
 from app.api.middleware import RequestContextMiddleware
 from app.api.routers import auth, health, me, shifts, trips
 from app.api.routers.admin import drivers as admin_drivers
 from app.core.config import get_settings
 from app.core.logging import configure_logging
-from app.core.security import LoginLimiter
+from app.core.ratelimit import LoginLimiter, MemoryRateLimitStore
 from app.db.database import Database
 
 
@@ -40,9 +41,15 @@ def create_app(db: Database | None = None) -> FastAPI:
     )
     if db is not None:
         app.state.db = db
-    app.state.login_limiter = LoginLimiter()
+    # In-process counters: right for a single instance (one granian worker)
+    rate_store = MemoryRateLimitStore()
+    app.state.login_limiter = LoginLimiter(rate_store)
 
     errors.install(app)
+    # Added inner first: a request passes RequestContext (id, access log), then
+    # Throttle (cheap, before any database work), then Auth, then the routers
+    app.add_middleware(AuthMiddleware)
+    app.add_middleware(ThrottleMiddleware, store=rate_store)
     app.add_middleware(RequestContextMiddleware)
 
     for router in (health.router, auth.router, me.router, shifts.router, trips.router, admin_drivers.router):

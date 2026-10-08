@@ -1,8 +1,8 @@
 from datetime import date
 
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, Depends, Response, status
 
-from app.api.deps import DriverId, TripServiceDep
+from app.api.deps import DriverId, TripServiceDep, require_driver
 from app.core.enums import ErrorCode
 from app.core.errors import ConflictError, TripConflictError
 from app.domain.models import DayInfo as DayInfoModel
@@ -10,7 +10,8 @@ from app.domain.models import DaySummary as DaySummaryModel
 from app.domain.models import Trip as TripModel
 from app.schemas.trips import DayInfo, DaySummary, Trip, TripIn, TripPatch
 
-router = APIRouter(prefix="/api", tags=["trips"])
+# The role is checked for the whole router: a new endpoint here cannot forget it
+router = APIRouter(prefix="/api", tags=["trips"], dependencies=[Depends(require_driver)])
 
 
 @router.get("/days", response_model=list[DayInfo])

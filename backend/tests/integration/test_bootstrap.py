@@ -47,7 +47,7 @@ def test_role_is_restricted(db):
 
 def test_ensure_admin_creates_once(db):
     assert db.service(AccountService).ensure_admin("Boss@Example.com", "horse-battery-9") is True
-    assert db.service(AccountService).ensure_admin("boss@example.com", "another-pass") is False
+    assert db.service(AccountService).ensure_admin("boss@example.com", "another-pass-1") is False
     assert roles(db) == {"boss@example.com": "admin"}
 
 

@@ -122,14 +122,16 @@ def test_secrets_never_reach_the_log(app, db, logs):
 # --- unexpected errors ---
 
 
-def test_unhandled_error_is_logged_with_traceback_and_hidden_from_the_client(db, logs):
+def test_unhandled_error_is_logged_with_traceback_and_hidden_from_the_client(db, driver_id, logs):
     app = create_app(db.database)
 
     @app.get("/api/boom")
     async def boom() -> None:
         raise RuntimeError("secret internals")
 
-    r = TestClient(app).get("/api/boom", headers={"X-Request-ID": "boom-req-0001"})
+    client = TestClient(app)
+    login(client)
+    r = client.get("/api/boom", headers={"X-Request-ID": "boom-req-0001"})
     assert r.status_code == 500
     body = r.json()["error"]
     assert body["code"] == "internal_error"

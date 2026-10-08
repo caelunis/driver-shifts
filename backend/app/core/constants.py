@@ -29,6 +29,8 @@ NAME_MAX_LENGTH = 100
 CAR_MODEL_MAX_LENGTH = 100
 PASSWORD_MIN_LENGTH = 8
 PASSWORD_MAX_LENGTH = 128
+# At least one letter (any alphabet) and one digit; length is checked separately
+PASSWORD_STRENGTH_PATTERN = r"^(?=.*[^\W\d_])(?=.*\d)"  # noqa: S105 - a rule, not a password
 # Profile fields a driver may change; everything else is managed by the admin
 DRIVER_SELF_EDITABLE = frozenset({"default_tz"})
 
@@ -36,8 +38,28 @@ DRIVER_SELF_EDITABLE = frozenset({"default_tz"})
 SESSION_COOKIE = "session"
 SESSION_TTL = timedelta(days=30)
 SESSION_TOKEN_BYTES = 32
-LOGIN_MAX_FAILURES = 5
+LOGIN_MAX_FAILURES = 5  # failed logins per email, then a pause
 LOGIN_FAILURE_WINDOW = timedelta(minutes=15)
+
+# --- access control and throttling ---
+# The only API endpoints served without a session; every other path under /api needs one
+PUBLIC_ENDPOINTS = frozenset(
+    {
+        ("POST", "/api/auth/login"),
+        ("POST", "/api/auth/logout"),
+        ("GET", "/api/health"),
+        ("HEAD", "/api/health"),
+        ("GET", "/api/docs"),
+        ("GET", "/api/openapi.json"),
+    }
+)
+# Requests per client address (not counting health checks)
+THROTTLE_LIMIT = 600
+THROTTLE_WINDOW = timedelta(minutes=1)
+# Login attempts per client address, on top of the per-email limit above: stops one
+# address from trying many different accounts
+LOGIN_ATTEMPTS_PER_CLIENT = 60
+LOGIN_ATTEMPTS_WINDOW = timedelta(minutes=5)
 # scrypt parameters (RFC 7914 recommendations for interactive logins)
 SCRYPT_N, SCRYPT_R, SCRYPT_P = 2**14, 8, 1
 SCRYPT_SALT_BYTES = 16
